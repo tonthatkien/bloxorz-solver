@@ -8,7 +8,7 @@ from solvers.metrics import format_result, measure, result_to_row, verify_path
 
 
 def toy_bfs(game, limits=None) -> SearchResult:
-    """BFS tối giản chỉ để thử module đo (không phải BFS nộp bài - đó là việc E2)."""
+    """BFS tối giản chỉ để thử module đo."""
     checker = LimitChecker(limits)
     start = game.initial_state()
     parent = {start: None}

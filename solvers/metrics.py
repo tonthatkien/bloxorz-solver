@@ -1,16 +1,14 @@
 """Tiện ích đo đạc và kiểm chứng kết quả solver (task E1).
 
-Module này đứng CẠNH `solvers/base.py` và dùng lại `SearchResult`, `Limits`,
-`run_measured` ở đó. Việc đo time / peak memory / expanded / length do
-`base.run_measured` thực hiện; module này bổ sung:
+Module này dùng lại `SearchResult`, `Limits`,`run_measured` ở đó.
+`run_measured`: việc đo time / peak memory / expanded / length do `base.run_measured` thực hiện;
+ module này bổ sung:
 
 - measure():        gọi run_measured và điền thêm `cost` bằng cách đi lại lời giải.
 - verify_path():    kiểm tra lời giải có hợp lệ không (đi theo path bằng get_successors).
 - result_to_row():  đổi SearchResult thành dict để ghi CSV (experiments/run_all.py).
 - format_result():  chuỗi gọn để hiển thị (GUI, log, báo cáo).
 
-Quy ước đếm `expanded_nodes` (theo docs/CODING_STANDARDS.md, mục 4): mỗi lần LẤY MỘT NÚT
-RA KHỎI frontier thì tăng expanded đúng một lần và gọi `checker.tick(expanded)`.
 """
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -21,7 +19,7 @@ def verify_path(game, path: List[str]) -> Tuple[bool, float]:
     """Đi lại `path` từ trạng thái đầu bằng get_successors.
 
     Trả về (hợp_lệ, tổng_chi_phí). Hợp lệ = mọi bước đều có trong successors
-    VÀ trạng thái cuối là đích. Chỉ dùng 3 hàm của Game theo hợp đồng.
+    VÀ trạng thái cuối là đích.
     """
     state = game.initial_state()
     total = 0.0
