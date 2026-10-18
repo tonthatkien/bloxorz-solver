@@ -11,4 +11,4 @@
 | Ngày | Người | ID việc | Công cụ (tên + phiên bản nếu biết) | Mục đích | Prompt (tóm tắt hoặc đầy đủ) | Kết quả dùng thế nào | Đã kiểm chứng bằng |
 |---|---|---|---|---|---|---|---|
 | 14/10/2026 | (ví dụ) A | A3 | Claude | Gợi ý bảng chuyển tư thế | "Cho khối 1x1x2 ... liệt kê 12 trường hợp (tư thế, hướng) → (tư thế, vị trí)" | Dùng làm tham khảo, tự viết lại code | Unit test 12 trường hợp, tự vẽ tay đối chiếu |
-|  |  |  |  |  |  |  |  |
+| 17/10/2026 | Hửu Duy | F1 | Antigravity | Tra cứu lý thuyết admissible heuristic và tìm code mẫu tính khoảng cách trên lưới | "Nêu ra kiến thức và code mẫu về cách tính khoảng cách Manhattan cho vật thể khối chữ nhật 1x1x2 trên lưới;điều kiện admissible" | Đọc hiểu tài liệu lý thuyết và code mẫu được tra cứu; chọn lọc kiến thức, tự xây dựng lại hàm chi phí, viết toàn bộ code heuristic và tài liệu | Tự vẽ hình tính tay trên giấy để kiểm chứng công thức,viết bộ unit test kiểm tra|
