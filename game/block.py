@@ -2,50 +2,49 @@
 from dataclasses import dataclass
 from typing import List, Tuple
 
-# Tư thế
-STANDING = "U"   # đứng: chiếm 1 ô (r, c)
-LYING_H = "H"    # nằm ngang: chiếm (r, c) và (r, c+1)
-LYING_V = "V"    # nằm dọc:   chiếm (r, c) và (r+1, c)
+# Tư thế của khối
+STAND = 0   # đứng: chiếm (r, c)
+HORIZ = 1   # nằm ngang: chiếm (r, c) và (r, c + 1)
+VERT = 2    # nằm dọc: chiếm (r, c) và (r + 1, c)
 
-# Hướng đi
-UP, DOWN, LEFT, RIGHT = "UP", "DOWN", "LEFT", "RIGHT"
-DIRECTIONS = (UP, DOWN, LEFT, RIGHT)
+# Hướng đi, theo thứ tự cố định của get_successors
+UP, DOWN, LEFT, RIGHT = "U", "D", "L", "R"
+MOVE_DIRECTIONS = (UP, DOWN, LEFT, RIGHT)
 
-# (tư thế, hướng) -> (tư thế mới, dr, dc); (r, c) luôn là ô trên-trái của khối
-_ROLL = {
-    (STANDING, UP):    (LYING_V, -2, 0),
-    (STANDING, DOWN):  (LYING_V, +1, 0),
-    (STANDING, LEFT):  (LYING_H, 0, -2),
-    (STANDING, RIGHT): (LYING_H, 0, +1),
-    (LYING_H, UP):     (LYING_H, -1, 0),
-    (LYING_H, DOWN):   (LYING_H, +1, 0),
-    (LYING_H, LEFT):   (STANDING, 0, -1),
-    (LYING_H, RIGHT):  (STANDING, 0, +2),
-    (LYING_V, UP):     (STANDING, -1, 0),
-    (LYING_V, DOWN):   (STANDING, +2, 0),
-    (LYING_V, LEFT):   (LYING_V, 0, -1),
-    (LYING_V, RIGHT):  (LYING_V, 0, +1),
+# (tư thế, hướng) -> (tư thế mới, d_row, d_col). (r, c) luôn là ô trên-trái của khối.
+_ROLL_TABLE = {
+    (STAND, UP): (VERT, -2, 0),
+    (STAND, DOWN): (VERT, 1, 0),
+    (STAND, LEFT): (HORIZ, 0, -2),
+    (STAND, RIGHT): (HORIZ, 0, 1),
+    (HORIZ, UP): (HORIZ, -1, 0),
+    (HORIZ, DOWN): (HORIZ, 1, 0),
+    (HORIZ, LEFT): (STAND, 0, -1),
+    (HORIZ, RIGHT): (STAND, 0, 2),
+    (VERT, UP): (STAND, -1, 0),
+    (VERT, DOWN): (STAND, 2, 0),
+    (VERT, LEFT): (VERT, 0, -1),
+    (VERT, RIGHT): (VERT, 0, 1),
 }
 
 
 @dataclass(frozen=True)
 class Block:
-    """Bất biến + hashable nên dùng trực tiếp trong visited/heap."""
+    """Vị trí + tư thế của khối. Bất biến và hashable nên dùng được trong visited/heapq."""
+
     r: int
     c: int
-    orient: str = STANDING
+    orient: int = STAND
 
     def cells(self) -> List[Tuple[int, int]]:
-        if self.orient == STANDING:
+        """Các ô khối đang chiếm."""
+        if self.orient == STAND:
             return [(self.r, self.c)]
-        if self.orient == LYING_H:
+        if self.orient == HORIZ:
             return [(self.r, self.c), (self.r, self.c + 1)]
         return [(self.r, self.c), (self.r + 1, self.c)]
 
-    def move(self, direction: str) -> "Block":
-        """Lăn 1 bước (chưa kiểm tra hợp lệ trên board)."""
-        orient, dr, dc = _ROLL[(self.orient, direction)]
-        return Block(self.r + dr, self.c + dc, orient)
-
-    def is_standing(self) -> bool:
-        return self.orient == STANDING
+    def roll(self, direction: str) -> "Block":
+        """Lăn một bước theo hướng cho trước (chưa kiểm tra hợp lệ trên bản đồ)."""
+        orient, d_row, d_col = _ROLL_TABLE[(self.orient, direction)]
+        return Block(self.r + d_row, self.c + d_col, orient)
