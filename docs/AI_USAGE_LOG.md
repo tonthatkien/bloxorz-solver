@@ -16,3 +16,5 @@
 
 
 | 21/10/2026 | Gia Hân | B1 | Codex (GPT-6) | Audit, loader validation, fragile helper, test và self-review | "Triển khai B1 trước B2; giữ State/Game/schema, bảo toàn thay đổi chưa commit, test và PR riêng" | Sinh code/test/report trong worktree riêng; chưa có phê duyệt con người | 30 unittest pass; compatibility A1 53 pass; 2 smoke commands pass; Gia Hân và reviewer còn phải đọc hiểu/duyệt |
+
+| 21/10/2026 | Gia Hân | B2 | Codex (GPT-6) | Bridge/switch helpers, unit/integration tests và hai vòng self-review | "Triển khai B2 sau B1; entry-trigger được người dùng xác nhận, giữ nguyên Game/State và không làm C1/C2" | Sinh TileRules, tests, report và PR body; chưa xuất bản do quyền GitHub | Branch: 75 pass/7 skip A1; bản sao cùng A1: 105 pass/0 skip; smoke và diff check pass; chờ con người đọc hiểu/review |
