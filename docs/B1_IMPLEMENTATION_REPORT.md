@@ -87,12 +87,12 @@ Các vị trí bên dưới chỉ implementation sau sửa; phiên bản baselin
 
 | Severity | File/vị trí | Tái hiện và expected/actual trước sửa | Nguyên nhân và sửa | Regression | Trạng thái |
 |---|---|---|---|---|---|
-| High | level_loader.py:78, _integer/_cell | start=[true,0]/[0.5,0]: phải reject; trước bị đổi thành int | Bỏ ép int, kiểm type chính xác | coordinates_reject_coercion | Fixed |
-| High | level_loader.py:111, _bridges | Hai record cùng id: phải reject; trước mất record đầu | Kiểm duplicate trước insert | bridge_invalid_records | Fixed |
-| High | level_loader.py:108, _bridges | open="false": phải reject; trước thành True | Chỉ nhận bool | bridge_invalid_records | Fixed |
-| High | level_loader.py:124, _switch | type/mode không hỗ trợ: phải reject; trước vẫn load | Validate enum/targets/set/split | switch_invalid_records, split_metadata_validation | Fixed |
-| Medium | level_loader.py:102, _grid | Ký tự lạ hoặc nhiều goal: phải reject; trước có thể load | Kiểm symbols và goal duy nhất | grid_shape_symbols_and_goal_count | Fixed |
-| Medium | level_loader.py:184, parse_level | Sửa JSON grid sau parse: Level phải độc lập; trước giữ alias | Copy container ở lúc parse | parsing_detaches_all_mutable_input | Fixed |
+| High | level_loader.py:79, _integer/_cell | start=[true,0]/[0.5,0]: phải reject; trước bị đổi thành int | Bỏ ép int, kiểm type chính xác | coordinates_reject_coercion | Fixed |
+| High | level_loader.py:107, _bridges | Hai record cùng id: phải reject; trước mất record đầu | Kiểm duplicate trước insert | bridge_invalid_records | Fixed |
+| High | level_loader.py:107, _bridges | open="false": phải reject; trước thành True | Chỉ nhận bool | bridge_invalid_records | Fixed |
+| High | level_loader.py:127, _switch | type/mode không hỗ trợ: phải reject; trước vẫn load | Validate enum/targets/set/split | switch_invalid_records, split_metadata_validation | Fixed |
+| Medium | level_loader.py:92, _grid | Ký tự lạ hoặc nhiều goal: phải reject; trước có thể load | Kiểm symbols và goal duy nhất | grid_shape_symbols_and_goal_count | Fixed |
+| Medium | level_loader.py:164, parse_level | Sửa JSON grid sau parse: Level phải độc lập; trước giữ alias | Copy container ở lúc parse | parsing_detaches_all_mutable_input | Fixed |
 
 ## Hai vòng self-review
 
@@ -117,3 +117,8 @@ nhiệm vụ; không trộn B2. Excel đã ghi Đang làm; giữ nguyên workboo
 Remote publication đã được thử: git push --dry-run thất bại do thiếu credential; connector
 GitHub create_tree trả HTTP 403. Không có branch/PR remote mới. Commit local dùng identity
 GitHub đã xác minh theo từng lệnh, không thay đổi git config. PR body ở B1_PULL_REQUEST.md.
+
+Đã tái hiện độc lập các lỗi trong module loader lấy trực tiếp từ baseline bằng git show:
+bool/fraction bị ép tọa độ, unknown tile/nhiều goal được nhận, string "false" thành True,
+ID trùng làm mất bridge record, switch type/mode không hỗ trợ vẫn được nhận, và JSON grid
+mutate làm Level thay đổi. Regression tests trong commit này từ chối/cô lập đúng các ca đó.
