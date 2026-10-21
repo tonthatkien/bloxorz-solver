@@ -14,3 +14,5 @@
 | 17/10/2026 | Gia Bảo | E1 | Claude | Hướng dẫn khái niệm tìm kiếm, gợi ý code module đo, so sánh DFS/IDS | "Hướng dẫn em hiểu đề và gợi ý bộ khung làm task E1 (module đo, chốt DFS/IDS); viết code; chỉnh lại cho khớp base.py" | Dùng làm cơ sở, chỉnh theo base.py của nhóm | Chạy unittest, tự giải 6 bài tập trên giấy |
 |  |  |  |  |  |  |  |  |
 
+
+| 21/10/2026 | Gia Hân | B1 | Codex (GPT-6) | Audit, loader validation, fragile helper, test và self-review | "Triển khai B1 trước B2; giữ State/Game/schema, bảo toàn thay đổi chưa commit, test và PR riêng" | Sinh code/test/report trong worktree riêng; chưa có phê duyệt con người | 30 unittest pass; compatibility A1 53 pass; 2 smoke commands pass; Gia Hân và reviewer còn phải đọc hiểu/duyệt |
