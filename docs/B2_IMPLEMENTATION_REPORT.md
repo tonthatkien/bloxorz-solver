@@ -159,32 +159,22 @@ không tự approve và không tuyên bố code hoàn hảo.
 
 ## Git, PR và handoff
 
-B1 có hai commit riêng `[B1]`; B2 chỉ chứa diff B2 từ HEAD B1 đã hoàn thành. Không sửa lịch
-sử đã chia sẻ, không force-push, không push main, không tự merge. PR body B2 theo template
-ở `docs/B2_PULL_REQUEST.md`, reviewer Bảo Bảo (`BB1311`). Repository yêu cầu PR vào main,
-nên **chờ B1 merge**, không tạo PR B2 vào main có cả diff B1.
+Cập nhật audit: cả B1 và B2 đã được người dùng push. B1 PR #4 vào main đã được tạo,
+request reviewer `tonthatkien`, CI Tests thành công. Người dùng đã xác nhận tạo stacked PR
+B2 với base `feature/han-B1`; đây là ngoại lệ được cho phép cho quy trình PR vào main.
+Diff PR B2 chỉ chứa B2. Reviewer B2: `BB1311`.
 
-Sau khi có quyền GitHub, dùng B1 branch để mở PR vào main, request `tonthatkien`, chờ
-review/CI và merge. Nếu B1 squash merge và B2 vẫn chưa publish, bảo toàn branch cũ rồi:
+Bổ sung `feature/han-B1` vào pull_request.branches trong `.github/workflows/tests.yml`
+trên riêng nhánh B2 để CI chạy cho stacked PR; push.branches vẫn chỉ có main.
+PR body trong B2_PULL_REQUEST.md phản ánh đúng dependency **B1 #4**, test evidence và
+checklist chưa có xác nhận con người. Không tự approve hoặc merge.
 
-```bash
-git fetch origin
-git branch -m feature/han-B2 feature/han-B2-before-main
-git switch -c feature/han-B2 origin/main
-git cherry-pick <B2-commit-SHA>
-python -m unittest discover -s tests -t .
-git diff origin/main...HEAD
-git push -u origin feature/han-B2
-```
-
-Chỉ cherry-pick commit B2, không các commit B1. Nếu B2 đã được publish ở nơi khác, giữ
-nguyên lịch sử và dùng branch mới (`feature/han-B2-main`) từ origin/main, không force-push.
-Nếu B1 có thay đổi khi review, xử lý conflict và chạy lại test; không tự lấy version cũ
-đè lên API mới. Mở PR B2 chỉ khi diff với main còn B2; request `BB1311`, kiểm tra CI.
-SHA B2 cuối cùng có thể tra bằng `git log feature/han-B1..feature/han-B2 --oneline`.
-
-Reviewer chạy toàn suite, đọc integration notes và kiểm tra từng edge case. Excel vẫn
-Đang làm, không đánh dấu Xong cho tới review/CI/merge và xác nhận con người hiểu code.
+Sau khi B1 merge, phải fetch và kiểm tra lịch sử trước khi chuyển base B2 sang main.
+Nếu B1 squash merge, không mặc nhiên đổi base hoặc rebase shared branch; cần bảo đảm
+diff so main chỉ chứa B2. Nếu cần rewrite lịch sử hay có conflict, hỏi người dùng trước.
+Không force-push/reset/ghi đè thay đổi chưa commit. PR B2 giữ chờ cho tới khi dependency
+và integration được xử lý. B1/B2 hiện đã publish, nên ghi chú 403/credential ở phần audit
+phía trên chỉ mô tả thời điểm viết report ban đầu, không còn là blocker push hiện tại.
 
 ### Tái hiện compatibility suite A1 mà không sửa checkout
 
