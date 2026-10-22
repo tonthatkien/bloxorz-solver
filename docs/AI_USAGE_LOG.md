@@ -11,4 +11,4 @@
 | Ngày | Người | ID việc | Công cụ (tên + phiên bản nếu biết) | Mục đích | Prompt (tóm tắt hoặc đầy đủ) | Kết quả dùng thế nào | Đã kiểm chứng bằng |
 |---|---|---|---|---|---|---|---|
 | 14/10/2026 | (ví dụ) A | A3 | Claude | Gợi ý bảng chuyển tư thế | "Cho khối 1x1x2 ... liệt kê 12 trường hợp (tư thế, hướng) → (tư thế, vị trí)" | Dùng làm tham khảo, tự viết lại code | Unit test 12 trường hợp, tự vẽ tay đối chiếu |
-|  |  |  |  |  |  |  |  |
+| 22/10/2026 | Vy | D1 | Antigravity (Gemini) | Hỗ trợ dựng khung GUI Pygame và các hiệu ứng diễn hoạt (lăn khối, rơi tiếp đất, vỡ vụn) | "Xây dựng GUI Pygame cho Bloxorz, chiếu 2.5D, hiệu ứng vỡ vụn khi rơi vực, hiệu ứng rơi tiếp đất từ trời xuống" | Tham khảo cấu trúc và hoàn thiện code `gui/app.py`, `gui/draw.py` | Chạy game trực tiếp (`main.py`), kiểm tra thị giác các góc camera và chạy 3/3 unittest xanh |
