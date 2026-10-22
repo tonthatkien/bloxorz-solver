@@ -1,14 +1,16 @@
 """Unit test lõi game: Board và Block (A1)."""
 import unittest
+import json
+import os
 
 from game.block import DOWN, HORIZ, LEFT, RIGHT, STAND, UP, VERT, Block
 from game.board import Board
 
 BOARD = Board.from_strings([
-    "...##",
-    "...##",
-    "..G..",
-    "##...",
+    "###..",
+    "###..",
+    "##G##",
+    "..###",
 ])
 
 
@@ -107,6 +109,42 @@ class TestBoard(unittest.TestCase):
         directions = [d for d, _ in BOARD.valid_moves(Block(0, 0, STAND))]
         self.assertEqual(directions, [DOWN, RIGHT])
 
+LEVEL_DIR = os.path.join(os.path.dirname(__file__), "..", "levels")  # chỉnh theo repo
+LEVEL_FILES = ["g1_basic_01.json", "g2_fragile_01.json", "g3_switch_demo.json"]
+
+
+def load_level(name):
+    with open(os.path.join(LEVEL_DIR, name), encoding="utf-8") as f:
+        return json.load(f)
+
+
+class TestJsonLevels(unittest.TestCase):
+    def test_hash_is_floor_dot_is_void(self):
+        for name in LEVEL_FILES:
+            with self.subTest(level=name):
+                data = load_level(name)
+                board = Board.from_strings(data["grid"])
+                for r, line in enumerate(data["grid"]):
+                    for c, ch in enumerate(line):
+                        if ch == "#":
+                            self.assertTrue(board.is_floor(r, c), (r, c))
+                        elif ch == ".":
+                            self.assertFalse(board.is_floor(r, c), (r, c))
+
+    def test_goal_matches_json(self):
+        for name in LEVEL_FILES:
+            with self.subTest(level=name):
+                data = load_level(name)
+                board = Board.from_strings(data["grid"])
+                self.assertEqual(board.goal, tuple(data["goal"]))
+                self.assertTrue(board.is_win(Block(*data["goal"], STAND)))
+
+    def test_start_is_valid_standing_position(self):
+        for name in LEVEL_FILES:
+            with self.subTest(level=name):
+                data = load_level(name)
+                board = Board.from_strings(data["grid"])
+                self.assertTrue(board.is_valid(Block(*data["start"], STAND)))
 
 if __name__ == "__main__":
     unittest.main()

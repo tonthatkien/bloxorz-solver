@@ -7,8 +7,8 @@ TILE_EMPTY = 0
 TILE_FLOOR = 1
 TILE_GOAL = 2
 
-# Ký tự dùng khi dựng bản đồ từ chuỗi (tiện cho test)
-_CHAR_TO_TILE = {"#": TILE_EMPTY, " ": TILE_EMPTY, ".": TILE_FLOOR, "G": TILE_GOAL}
+# Ký tự dùng khi dựng bản đồ từ chuỗi (khớp README và JSON màn chơi)
+_CHAR_TO_TILE = {"#": TILE_FLOOR, ".": TILE_EMPTY, " ": TILE_EMPTY, "G": TILE_GOAL}
 
 
 class Board:
@@ -25,7 +25,7 @@ class Board:
 
     @classmethod
     def from_strings(cls, lines: Sequence[str]) -> "Board":
-        """Dựng từ chuỗi: '.' sàn, 'G' đích, '#' hoặc ' ' trống."""
+        """Dựng từ chuỗi: '#' sàn, 'G' đích, '.' hoặc ' ' trống."""
         return cls([[_CHAR_TO_TILE[ch] for ch in line] for line in lines])
 
     def tile(self, r: int, c: int) -> int:
