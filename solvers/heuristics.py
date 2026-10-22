@@ -12,8 +12,6 @@ COST_FRAGILE: float = 1.5   # Bước lăn khiến một phần khối nằm lê
 COST_SWITCH: float = 1.2    # Bước lăn kích hoạt công tắc bất kỳ
 COST_SWAP: float = 0.5      # Hành động 'S' – hoán đổi cube đang điều khiển
 
-# Chi phí tối thiểu của một bước dịch chuyển vị trí khối (không phải swap)
-# Dùng làm nhân tử cận dưới cho mọi heuristic.
 COST_MIN: float = COST_NORMAL
 
 
@@ -31,19 +29,18 @@ def step_cost(game, old_state: State, action: str, new_state: State) -> float:
         new_cells = [(new_state.r, new_state.c)]
     elif new_state.orient == HORIZ:
         new_cells = [(new_state.r, new_state.c), (new_state.r, new_state.c + 1)]
-    else:  # VERT
+    else:  
         new_cells = [(new_state.r, new_state.c), (new_state.r + 1, new_state.c)]
 
-    # Kiểm tra có kích hoạt công tắc nào không
-    # (trạng thái bridges thay đổi ↔ có công tắc được kích hoạt)
+    # Kiểm tra có kích hoạt công tắc
     if old_state.bridges != new_state.bridges:
         return COST_SWITCH
 
-    # Kiểm tra công tắc split (bridges không đổi nhưng split thay đổi)
+    # Kiểm tra công tắc split
     if old_state.split is None and new_state.split is not None:
         return COST_SWITCH
 
-    # Kiểm tra có đè lên ô dễ vỡ không
+    # Kiểm tra có đè lên ô dễ vỡ 
     for cell in new_cells:
         if cell in level.fragile:
             return COST_FRAGILE
@@ -97,14 +94,13 @@ def h_manhattan(game, state: State) -> float:
     return math.ceil(manhattan / 2.0) * COST_MIN
 
 
-# Heuristic 2: Manhattan kết hợp phạt tư thế hướng (h_manhattan_orient)
+# Heuristic 2: Manhattan orient
 def h_manhattan_orient(game, state: State) -> float:
     goal = game.level.goal
     rc, cc = _block_centroid(state)
     d = abs(rc - goal[0]) + abs(cc - goal[1])
     base = math.ceil(d / 2.0) * COST_MIN
 
-    # Phạt tư thế: chỉ cộng khi khối chưa tách, đang nằm và đã kề sát goal
     if state.split is None and state.orient != STAND and d <= 2:
         return base + COST_MIN
     return base
