@@ -48,7 +48,7 @@ def step_cost(game, old_state: State, action: str, new_state: State) -> float:
     return COST_NORMAL
 
 
-def _block_centroid(state: State) -> Tuple[float, float]:
+def block_centroid(state: State) -> Tuple[float, float]:
     if state.split is not None:
         r, c = state.split[0]   # cube đang điều khiển
         return float(r), float(c)
@@ -60,7 +60,7 @@ def _block_centroid(state: State) -> Tuple[float, float]:
     return state.r + 0.5, float(state.c)
 
 
-def _bfs_distance_map(
+def bfs_distance_map(
     grid: list,
     goal: Tuple[int, int],
     rows: int,
