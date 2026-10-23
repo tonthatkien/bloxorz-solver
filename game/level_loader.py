@@ -1,9 +1,9 @@
 """Load and validate the team's JSON level format without changing its public data API."""
 import json
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
-Cell = Tuple[int, int]
+from .state import Cell
 
 
 @dataclass
@@ -23,7 +23,7 @@ class Switch:
     pos: Cell
     targets: List[int] = field(default_factory=list)
     mode: str = "toggle"
-    set: Optional[str] = None
+    set: Optional[str] = None  # Keep the public attribute aligned with JSON key "set".
     cubes: Optional[List[Cell]] = None
 
 

@@ -1,41 +1,42 @@
 ## Việc nào? (ID trong file Excel)
-B1 — Bộ nạp JSON mở rộng & ô dễ vỡ. Developer: Gia Hân.
+B1 — Bộ nạp JSON mở rộng & ô dễ vỡ. Developer: Gia Hân; reviewer: Kiên (`tonthatkien`).
 
 ## Đã làm gì
-- Mở rộng validation trong `game/level_loader.py`: kiểu dữ liệu, tọa độ, grid/goal,
-  bridge IDs/targets, switch modes/permanent và split metadata; giữ API và JSON schema.
-- Thêm `game/fragile.py`: helper pure kiểm tra STAND trên fragile theo state sau di chuyển.
-- Thêm 21 test methods (nhiều validation subtests), report và AI usage log.
-- Xác minh State immutable/hashable và bridge masks; không sửa State/Game/A1/GUI/solver.
+- Loader kiểm tra JSON grid/tọa độ, bridge IDs/targets, modes, permanent và split metadata;
+  giữ public Level/Bridge/Switch, key JSON và bridge bitmask theo ID.
+- Helper fragile kiểm trọng lượng trên trạng thái sau di chuyển; State bất biến/hashable giữ nguyên.
+- Phản hồi review: dùng chung Cell từ game.state, giữ Switch.set có chủ đích và thêm regression
+  cho constructor/JSON permanent, ID và từng loại overlap.
+- Không áp đặt ID<64 hoặc cấm overlap: người dùng chọn giữ schema và chờ nhóm thống nhất.
 
 ## Cách kiểm tra
 ```bash
+python -m unittest tests.test_level_validation tests.test_fragile
 python -m unittest discover -s tests -t .
-python main.py
 python main.py levels/g3_switch_demo.json
 git diff --check
 ```
-Thực tế Python 3: **30 tests PASS, 0 fail, 0 skip**; cả hai smoke commands nạp thành công.
-Compatibility suite với ba file A1 trong thư mục tạm: **53 tests PASS**;
-đã kiểm tra chuyển đổi symbol JSON→A1 và roll/goal. Chưa có Game end-to-end do A2 thiếu.
+Kết quả ngày 23/10: loader/fragile **26 pass**; cả branch (đã chứa B2):
+**89 discovered = 82 pass, 7 skip A1, 0 fail**.
+Bản sao ghép A1 từ main: **115 pass, 0 skip/fail**. Smoke và diff check thành công.
 
 ## Checklist của người làm
-- [x] Nhánh đúng tên `feature/<tên>-<ID>`, commit message dạng `[ID] ...`
-- [x] PR chỉ làm một việc, không lẫn thay đổi B2
-- [x] Đã chạy unittest discovery và xanh
-- [x] Có test cho logic mới; public API có type hint + docstring
-- [x] Không đổi State / Game / SearchResult / định dạng JSON
-- [x] Không còn TODO B1, print gỡ lỗi hoặc file rác trong diff
+- [x] Nhánh/commit đúng quy ước B1
+- [x] Có regression và đã chạy test thực tế; skips/dependency được ghi rõ
+- [x] Public API có type hints/docstrings, không đổi State/Game/SearchResult/JSON domain
+- [x] Không TODO B1, print gỡ lỗi hoặc artefact tạm trong diff
 - [x] Đã ghi docs/AI_USAGE_LOG.md
-- [ ] Gia Hân đã tự đọc hiểu và giải thích được từng phần (cần con người xác nhận)
-- [ ] Đã request reviewer và thông báo nhóm (chỉ đánh dấu khi đã thực hiện đủ)
+- [ ] Gia Hân/reviewer xác nhận hiểu code và đồng thuận chính sách schema còn mở
 
 ## Ghi chú cho người review
-Reviewer: Kiên (`tonthatkien`). Dependency: A1 #3 còn open, A2 chưa triển khai.
-Xem `docs/B1_IMPLEMENTATION_REPORT.md` để có audit, thiết kế, lỗi đã sửa và bằng chứng test.
-Kiểm tra kỹ validation không ép bool/float thành int, bit i theo bridge ID, alias JSON,
-và helper fragile sau roll. Fragile helper chỉ kiểm weight; support đầy đủ do B2 cung cấp.
-Overlay khác loại không bị cấm tùy tiện; special tiles phải nằm trên # như README.
-Không truyền grid JSON trực tiếp vào A1 Board.from_strings (. và # đang ngược nghĩa).
-PR lớn hơn ~300 dòng do tests/validation của cùng B1; chưa bao gồm B2 hay Game integration.
-CI cần được kiểm tra sau khi mở PR. Không merge trước dependency/review/CI.
+A1 #3 đã merge vào main và đã sửa mapping #/., không cần workaround parser cũ.
+B2 #5 đã được merge vào nhánh B1 trước lần sửa này; giữ nguyên commit và merge đó.
+Game A2/C3 chưa tích hợp helper; không tự merge hoặc approve PR này.
+
+Đề xuất ID<64 và cấm bridge/switch/fragile overlap chờ nhóm chốt với GUI/Game theo
+CONTRIBUTING mục 7. Giữ .set vì là public attribute/JSON key, không shadow built-in set().
+Đã tách test overlap thành từng trường hợp và chứng minh soft/heavy trên fragile đúng thứ tự
+support/effects. Không sửa test sang reject khi chưa có quyết định đổi schema.
+
+ID lớn vẫn có rủi ro cấp phát runtime; test ID10**9 chỉ parse metadata, không dịch bit lớn.
+Chi tiết và bằng chứng ở docs/B1_IMPLEMENTATION_REPORT.md, phần cập nhật 23/10/2026.

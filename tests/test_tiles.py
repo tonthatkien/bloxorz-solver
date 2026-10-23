@@ -90,6 +90,31 @@ class TestTileSupport(unittest.TestCase):
         self.assertFalse(rules.is_bridge_open((0, 0), 1))
         self.assertFalse(rules.is_bridge_open((-1, 0), 1))
 
+    def test_soft_switch_on_fragile_can_be_pressed_while_lying(self):
+        level = switch_level("soft")
+        level.fragile.add((1, 1))
+        rules = TileRules.from_level(level)
+        old = State(0, 0)
+        self.assertIsNone(rules.resolve_landing(old, State(1, 1)))
+        for orientation in (HORIZ, VERT):
+            with self.subTest(orientation=orientation):
+                self.assertEqual(rules.resolve_landing(old, State(1, 1, orientation)),
+                                 State(1, 1, orientation, bridges=1 << 7))
+        self.assertEqual(old.bridges, 0)
+
+    def test_heavy_switch_on_fragile_cannot_bypass_weight_rule(self):
+        level = switch_level("heavy")
+        level.fragile.add((1, 1))
+        rules = TileRules.from_level(level)
+        old = State(0, 0)
+        self.assertIsNone(rules.resolve_landing(old, State(1, 1)))
+        for orientation in (HORIZ, VERT):
+            with self.subTest(orientation=orientation):
+                landed = State(1, 1, orientation)
+                self.assertEqual(rules.resolve_landing(old, landed), landed)
+                self.assertEqual(rules.detect_triggered_switches(old, landed), ())
+        self.assertEqual(level.initial_bridge_mask(), 0)
+
     def test_fragile_and_bridge_overlap_compose_instead_of_losing_weight_rule(self):
         data = basic_level()
         data["bridges"] = [{"id": 0, "pos": [1, 1]}]

@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest.mock import mock_open, patch
 
-from game.level_loader import load_level, parse_level
+from game.level_loader import Switch, load_level, parse_level
 
 
 def basic_level() -> dict:
@@ -73,13 +73,61 @@ class TestLevelValidation(unittest.TestCase):
         self.assertFalse(level.bridges[7].open)
         self.assertEqual(level.switches[(1, 1)].mode, "toggle")
 
-    def test_composable_overlays_are_not_blanket_forbidden(self):
+    def test_permanent_json_set_and_public_switch_constructor_remain_compatible(self):
+        for setting in ("open", "close"):
+            data = advanced_level()
+            data["switches"][1]["set"] = setting
+            loaded = parse_level(data).switches[(3, 2)]
+            expected = Switch("heavy", (3, 2), targets=[7], mode="permanent", set=setting)
+            self.assertEqual(loaded, expected)
+            self.assertEqual(loaded.set, setting)
+        self.assertEqual(set([2, 7, 2]), {2, 7})
+
+    def test_bridge_and_fragile_overlay_preserves_existing_schema(self):
+        # A stricter overlap policy needs agreement with Game/GUI before validation changes.
         data = advanced_level()
-        data["fragile"] = [[2, 2], [1, 1]]
+        data["fragile"] = [[2, 2]]
+        level = parse_level(data)
+        self.assertEqual(level.bridges[7].pos, (2, 2))
+        self.assertIn((2, 2), level.fragile)
+
+    def test_bridge_and_switch_overlay_preserves_existing_schema(self):
+        data = advanced_level()
         data["switches"][0]["pos"] = [2, 2]
         level = parse_level(data)
-        self.assertIn((2, 2), level.fragile)
-        self.assertIn((2, 2), level.switches)
+        self.assertEqual(level.bridges[7].pos, (2, 2))
+        self.assertEqual(level.switches[(2, 2)].targets, [2, 7])
+        self.assertNotIn((2, 2), level.fragile)
+
+    def test_fragile_and_switch_overlays_preserve_data_pending_team_policy(self):
+        # Loading metadata does not imply the switch is reachable or the level is solvable.
+        for kind, index in (("soft", 0), ("heavy", 1), ("split", 2)):
+            with self.subTest(kind=kind):
+                data = advanced_level()
+                data["switches"][index]["pos"] = [1, 3]
+                level = parse_level(data)
+                self.assertEqual(level.switches[(1, 3)].type, kind)
+                self.assertIn((1, 3), level.fragile)
+
+    def test_bridge_ids_63_and_64_preserve_unbounded_schema_pending_team_policy(self):
+        for bridge_id in (0, 63, 64):
+            with self.subTest(bridge_id=bridge_id):
+                data = dict(basic_level(), bridges=[
+                    {"id": bridge_id, "pos": [2, 2], "open": True}])
+                level = parse_level(data)
+                self.assertEqual(level.initial_bridge_mask(), 1 << bridge_id)
+
+    def test_parsing_large_bridge_id_does_not_build_runtime_mask(self):
+        # Preserve the current JSON domain without allocating a huge shifted integer.
+        bridge_id = 10**9
+        data = dict(basic_level(), bridges=[{"id": bridge_id, "pos": [2, 2]}],
+                    switches=[{"type": "soft", "pos": [1, 1], "targets": [bridge_id]}])
+        with patch("game.level_loader.Level.initial_bridge_mask",
+                   side_effect=AssertionError("parser must not build a runtime mask")):
+            level = parse_level(data)
+        self.assertEqual(level.bridges[bridge_id].id, bridge_id)
+        self.assertFalse(level.bridges[bridge_id].open)
+        self.assertEqual(level.switches[(1, 1)].targets, [bridge_id])
 
     def test_root_required_fields_and_collections(self):
         for bad in (None, [], 3, "level"):

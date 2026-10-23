@@ -1,5 +1,8 @@
 # B1 Implementation Report
 
+> Cập nhật review ngày 23/10/2026 ở cuối báo cáo. Các số liệu và trạng thái trong phần
+> triển khai ban đầu bên dưới là snapshot ngày 21/10, không phải trạng thái PR hiện tại.
+
 - Task: B1 — Bộ nạp JSON mở rộng & ô dễ vỡ. Developer: Gia Hân.
 - Reviewer: Kiên (`tonthatkien`, xác minh từ tác giả PR A1 #3).
 - Status: implementation completed; pending dependency merge, review và Game integration.
@@ -122,3 +125,47 @@ GitHub đã xác minh theo từng lệnh, không thay đổi git config. PR body
 bool/fraction bị ép tọa độ, unknown tile/nhiều goal được nhận, string "false" thành True,
 ID trùng làm mất bridge record, switch type/mode không hỗ trợ vẫn được nhận, và JSON grid
 mutate làm Level thay đổi. Regression tests trong commit này từ chối/cô lập đúng các ca đó.
+
+## Phản hồi review Kiên — 23/10/2026
+
+Đã fetch head B1 `145de625f8f12e625237f42cebb76ead349dce1b` trước khi sửa.
+PR #5 (B2) đã được merge vào nhánh B1 trên GitHub; giữ nguyên merge và mọi commit cũ.
+A1 #3 đã merge vào main (`93bbb67`), ký hiệu JSON/Board.from_strings đã khớp nhau.
+Không sửa code Kiên hoặc tự merge main/B1/B2 trong lần phản hồi này.
+
+| Góp ý | Xác minh và quyết định | Thay đổi/bằng chứng |
+|---|---|---|
+| Cell thiếu import | Alias Cell đã tồn tại tại module, không có NameError. Dùng chung type giúp tránh lặp | Import từ game.state; get_type_hints(Bridge/Switch) resolve được |
+| Đổi set thành setting | Thuộc tính dataclass không che built-in set() trong các hàm. JSON và B2 đang dùng .set | Giữ public field/constructor và JSON key; comment giải thích; regression permanent open/close |
+| Giới hạn bridge ID <64 | Rủi ro runtime là có thật nhưng cap64 thu hẹp domain JSON chưa được nhóm chốt | Người dùng chọn giữ schema; test ID0/63/64; parse ID10**9 không dựng mask |
+| Cấm overlap | README chưa có lệnh cấm; người dùng chọn giữ tương thích chờ nhóm | Tách test gộp ba loại thành từng cặp, không tự đổi thành assertRaises |
+| Overlap với công tắc nặng/tách | Fragile loại full block đứng trước kích hoạt; dữ liệu load được không đồng nghĩa level giải được | B2 test soft+fragile và heavy+fragile; split metadata giữ nguyên, C2 chưa tích hợp |
+
+Hành vi hiện tại cần trao đổi với Game/GUI:
+
+- Bridge + fragile: cầu phải mở, sau đó áp dụng giới hạn trọng lượng fragile.
+- Bridge + switch: cầu phải mở để tiếp đất; effects xong kiểm support lại, đóng cầu dưới khối là thua.
+- Fragile + soft: khối nằm có thể kích hoạt; khối đứng bị loại trước hiệu ứng.
+- Fragile + heavy/split: không có full-block standing activation hợp lệ trên fragile.
+  Đây là cấu hình có thể không sử dụng được trong gameplay, không tự biến thành schema error.
+
+**Pending team agreement:** giới hạn ID (và kiểm targets tương ứng), các tổ hợp overlap cần
+cấm, thứ tự vẽ overlays ở GUI và validation cho split. Theo CONTRIBUTING mục 7, thay đổi
+hợp đồng cần nhóm chốt; người dùng đã yêu cầu chưa áp đặt cap/ban trong bản sửa này.
+Chưa liên hệ Thảo Vy hoặc gửi reply/comment lên GitHub thay người dùng.
+
+**Rủi ro chưa xử lý:** ID quá lớn vẫn có thể làm initial_bridge_mask hoặc TileRules dựng
+số nguyên rất lớn khi runtime dùng bridge/target đó. Việc chỉ parse ID lớn trong regression
+không chứng minh runtime an toàn và không phải bản vá cho rủi ro này. Cần chốt giới hạn
+trước khi sử dụng level không được kiểm soát. Không remap IDs vì bit i = ID i là contract.
+
+Kết quả test sau sửa:
+
+- `python3 -B -m unittest tests.test_level_validation tests.test_fragile`: **26 pass**.
+- `python3 -B -m unittest discover -s tests -t .`: **89 discovered, 82 pass, 7 skip A1**.
+- Bản sao của code đang sửa + ba file A1 từ main hiện tại: **115 pass, 0 fail/skip**.
+- Smoke `main.py levels/g3_switch_demo.json`, type hints và `git diff --check`: PASS.
+- Review độc lập chỉ đọc diff và chạy 66 loader/tile tests: PASS, không thấy lỗi cần sửa.
+
+Đây là cải tiến tương thích và làm rõ phản hồi, không đánh dấu các đề xuất schema đã được
+nhóm đồng ý. Vẫn chờ reviewer và tích hợp A2/C3; không tự approve/merge.
