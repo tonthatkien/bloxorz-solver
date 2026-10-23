@@ -1,5 +1,8 @@
 # B1 Implementation Report
 
+> Trạng thái sau sửa topology ngày 23/10/2026: B1 chỉ chứa B1; nội dung merge B2 đã
+> được revert bằng ee81296, các sửa B1 từ 7308a83 giữ nguyên. B1 đã cập nhật main/A1,
+> chạy 61/61 tests pass, 0 skip/fail. B2 được phục hồi sang nhánh review riêng.
 > Cập nhật review ngày 23/10/2026 ở cuối báo cáo. Các số liệu và trạng thái trong phần
 > triển khai ban đầu bên dưới là snapshot ngày 21/10, không phải trạng thái PR hiện tại.
 
@@ -129,7 +132,9 @@ mutate làm Level thay đổi. Regression tests trong commit này từ chối/c�
 ## Phản hồi review Kiên — 23/10/2026
 
 Đã fetch head B1 `145de625f8f12e625237f42cebb76ead349dce1b` trước khi sửa.
-PR #5 (B2) đã được merge vào nhánh B1 trên GitHub; giữ nguyên merge và mọi commit cũ.
+PR #5 (B2) từng được merge vào B1; merge commit vẫn còn trong lịch sử nhưng nội dung
+B2 đã được revert bằng ee81296 để sửa phạm vi PR. Code/tests B2 giữ trong backup và
+nhánh feature/han-B2-review; không nằm trong tree B1 hiện tại.
 A1 #3 đã merge vào main (`93bbb67`), ký hiệu JSON/Board.from_strings đã khớp nhau.
 Không sửa code Kiên hoặc tự merge main/B1/B2 trong lần phản hồi này.
 
@@ -169,3 +174,16 @@ Kết quả test sau sửa:
 
 Đây là cải tiến tương thích và làm rõ phản hồi, không đánh dấu các đề xuất schema đã được
 nhóm đồng ý. Vẫn chờ reviewer và tích hợp A2/C3; không tự approve/merge.
+
+## Kiểm tra sau tách nhánh — 23/10/2026
+
+- B1 code/tests bằng đúng blob tại backup/han-B1-before-fix (7308a83).
+- Giữ phản hồi reviewer: shared Cell, public Switch.set, validation và các test mới.
+- Diff B1 so main chỉ có loader, fragile, hai test B1, hai tài liệu B1 và AI usage B1.
+- Revert merge B2 giữ lịch sử; không rewrite/reset/force-push hoặc xóa nhánh cũ.
+- Đã merge main/A1 không sửa code của A1. Suite B1: 61 pass, 0 fail/skip.
+- Smoke main.py với level cơ bản/công tắc và git diff --check thành công.
+- B2 test soft/heavy trên fragile không bị xóa để làm test xanh: chuyển nguyên bản
+  sang nhánh B2-review (full test_tiles.py 418 dòng từ backup).
+- Reviewer B1 Kiên, B2 Bảo Bảo đã được người dùng xác nhận lại; PR B2 mới chỉ review
+  với base B1, tuyệt đối không merge vào B1. Chờ B1 merge rồi kiểm tra/đổi base sang main.
