@@ -9,8 +9,10 @@ Quy ước:
 """
 from typing import Callable, List, Optional, Tuple
 
+from .block import Block
+from .board import Board
 from .level_loader import Level
-from .state import State
+from .state import STAND, State
 
 Action = str
 ACTIONS = ("U", "D", "L", "R", "S")
@@ -24,19 +26,27 @@ class Game:
     def __init__(self, level: Level, cost_fn: Optional[CostFn] = None):
         self.level = level
         self.cost_fn = cost_fn
+        # Dựng một lần, không dựng lại mỗi lần get_successors (CODING_STANDARDS mục 7)
+        self.board = Board.from_strings(level.grid)
 
     def initial_state(self) -> State:
         """Khối đứng ở ô start, cầu theo trạng thái ban đầu trong level."""
         r, c = self.level.start
-        return State(r, c, 0, self.level.initial_bridge_mask(), None)
+        return State(r, c, STAND, self.level.initial_bridge_mask(), None)
 
     def is_goal(self, s: State) -> bool:
         """Thắng khi khối ĐỨNG (không tách) trên ô đích."""
-        raise NotImplementedError  # TODO [A5]
+        return s.split is None and self.board.is_win(Block(s.r, s.c, s.orient))
 
     def get_successors(self, s: State) -> List[Tuple[Action, State, float]]:
-        """Trả về [(action, new_state, cost), ...] chỉ gồm nước đi HỢP LỆ."""
-        raise NotImplementedError  # TODO [A8] -> [B] ô nâng cao -> [C7] tách/ghép
+        """Trả về [(action, new_state, cost), ...] chỉ gồm nước đi HỢP LỆ (thứ tự U, D, L, R)."""
+        # TODO [B]: ô dễ vỡ, cầu, công tắc | [C]: tách/ghép, cube đơn, hành động "S"
+        result = []
+        for action, block in self.board.valid_moves(Block(s.r, s.c, s.orient)):
+            new_state = State(block.r, block.c, block.orient, s.bridges, s.split)
+            result.append((action, new_state, self.step_cost(s, action, new_state)))
+        return result
 
     def step_cost(self, old: State, action: Action, new: State) -> float:
+        """Chi phí một bước: mặc định 1.0, hoặc theo cost_fn nếu có."""
         return 1.0 if self.cost_fn is None else self.cost_fn(old, action, new)
