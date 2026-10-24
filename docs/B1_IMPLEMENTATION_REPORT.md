@@ -1,5 +1,21 @@
 # B1 Implementation Report
 
+> Cập nhật hiện tại — 24/10/2026, theo D1–D4 của PR #9 và yêu cầu của Gia Hân.
+> Phần lịch sử bên dưới ghi lại các quyết định cũ; các mục giữ overlap/ID không giới hạn
+> và giữ JSONDecodeError đã được thay thế bằng hợp đồng sau:
+>
+> - Mỗi ô chỉ có một loại đặc biệt: fragile, bridge, switch hoặc goal. Báo lỗi có tọa độ
+>   và hai loại xung đột; kiểm tra đủ soft/heavy/split.
+> - Đích split phải là hai ô sàn `#` thường khác nhau, không thuộc fragile/bridge/switch/goal.
+> - Bridge ID và targets đều là int 0–63, không nhận bool; target phải tồn tại.
+> - `LevelValidationError(ValueError)` cho JSON sai syntax, encoding hoặc schema.
+>   Lỗi I/O giữ nguyên; lỗi syntax giữ nguyên nguyên nhân qua exception chaining.
+> - Giữ Switch.set/JSON "set", dataclass public, State/Game và luật fragile.
+>
+> Kiểm chứng: B1 **63 pass, 0 fail/skip**, ba level hiện có load được và smoke main thành công.
+> PR #9 chưa merge tại thời điểm rà soát; tài liệu vẫn yêu cầu Duy/Bảo xác nhận D3 trong chat.
+> Không tự xác nhận thay nhóm. PR #4 chỉ B1; B2 nằm ở PR #8, base B1 để review.
+
 > Trạng thái sau sửa topology ngày 23/10/2026: B1 chỉ chứa B1; nội dung merge B2 đã
 > được revert bằng ee81296, các sửa B1 từ 7308a83 giữ nguyên. B1 đã cập nhật main/A1,
 > chạy 61/61 tests pass, 0 skip/fail. B2 được phục hồi sang nhánh review riêng.
