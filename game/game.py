@@ -34,6 +34,10 @@ class Game:
         r, c = self.level.start
         return State(r, c, STAND, self.level.initial_bridge_mask(), None)
 
+    def is_goal(self, s: State) -> bool:
+        """Thắng khi khối ĐỨNG (không tách) trên ô đích."""
+        return s.split is None and self.board.is_win(Block(s.r, s.c, s.orient))
+
     def get_successors(self, s: State) -> List[Tuple[Action, State, float]]:
         """Trả về [(action, new_state, cost), ...] chỉ gồm nước đi HỢP LỆ (thứ tự U, D, L, R)."""
         # TODO [B]: ô dễ vỡ, cầu, công tắc | [C]: tách/ghép, cube đơn, hành động "S"
@@ -42,7 +46,7 @@ class Game:
             new_state = State(block.r, block.c, block.orient, s.bridges, s.split)
             result.append((action, new_state, self.step_cost(s, action, new_state)))
         return result
-    
+
     def step_cost(self, old: State, action: Action, new: State) -> float:
         """Chi phí một bước: mặc định 1.0, hoặc theo cost_fn nếu có."""
         return 1.0 if self.cost_fn is None else self.cost_fn(old, action, new)
