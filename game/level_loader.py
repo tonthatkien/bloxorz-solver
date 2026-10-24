@@ -264,4 +264,5 @@ def _validate(level: Level) -> None:
             f"start {level.start}: standing on fragile would immediately fall")
     for bridge in level.bridges.values():
         if bridge.pos == level.start and not bridge.open:
-            raise LevelValidationError(f"start {level.start}: bridge {bridge.id} is initially closed")
+            raise LevelValidationError(
+                f"start {level.start}: bridge {bridge.id} is initially closed")

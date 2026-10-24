@@ -174,7 +174,8 @@ class TestLevelValidation(unittest.TestCase):
                 parse_level(data)
         for key in ("fragile", "bridges", "switches"):
             for bad in (None, {}, "text", False):
-                with self.subTest(key=key, bad=bad), self.assertRaisesRegex(LevelValidationError, key):
+                with self.subTest(key=key, bad=bad), self.assertRaisesRegex(
+                        LevelValidationError, key):
                     parse_level(dict(basic_level(), **{key: bad}))
         with self.assertRaisesRegex(LevelValidationError, "name"):
             parse_level(dict(basic_level(), name=7))
@@ -189,7 +190,8 @@ class TestLevelValidation(unittest.TestCase):
         for field in ("start", "goal"):
             for bad in ([-1, 0], [99, 0], [0, 99], [True, 0], [0.5, 0],
                         ["0", 0], [0], [0, 0, 0], "00", None):
-                with self.subTest(field=field, bad=bad), self.assertRaisesRegex(LevelValidationError, field):
+                with self.subTest(field=field, bad=bad), self.assertRaisesRegex(
+                        LevelValidationError, field):
                     parse_level(dict(basic_level(), **{field: bad}))
         data = basic_level()
         data["grid"][0] = ".#####"
@@ -200,7 +202,8 @@ class TestLevelValidation(unittest.TestCase):
 
     def test_fragile_records_and_invalid_initial_support(self):
         for fragile in ([[0, 0]], [[99, 0]], [[True, 1]], [[1, 5]], [[1, 1], [1, 1]]):
-            with self.subTest(fragile=fragile), self.assertRaisesRegex(LevelValidationError, "fragile"):
+            with self.subTest(fragile=fragile), self.assertRaisesRegex(
+                    LevelValidationError, "fragile"):
                 parse_level(dict(basic_level(), fragile=fragile))
         data = advanced_level()
         data["bridges"][0]["pos"] = [0, 0]
@@ -216,7 +219,8 @@ class TestLevelValidation(unittest.TestCase):
                         {"pos": [1, 5]}, {"pos": [True, 2]}):
             data = advanced_level()
             data["bridges"][0].update(changes)
-            with self.subTest(changes=changes), self.assertRaisesRegex(LevelValidationError, "bridge"):
+            with self.subTest(changes=changes), self.assertRaisesRegex(
+                    LevelValidationError, "bridge"):
                 parse_level(data)
         for item in (None, [], {}, {"id": 1}):
             with self.subTest(item=item), self.assertRaisesRegex(LevelValidationError, "bridges"):
@@ -224,7 +228,8 @@ class TestLevelValidation(unittest.TestCase):
         for key in ("id", "pos"):
             data = advanced_level()
             data["bridges"][1][key] = data["bridges"][0][key]
-            with self.subTest(duplicate=key), self.assertRaisesRegex(LevelValidationError, "duplicate"):
+            with self.subTest(duplicate=key), self.assertRaisesRegex(
+                    LevelValidationError, "duplicate"):
                 parse_level(data)
 
     def test_switch_invalid_records_links_modes_and_types(self):
@@ -237,7 +242,8 @@ class TestLevelValidation(unittest.TestCase):
         for changes in cases:
             data = advanced_level()
             data["switches"][0].update(changes)
-            with self.subTest(changes=changes), self.assertRaisesRegex(LevelValidationError, "switch"):
+            with self.subTest(changes=changes), self.assertRaisesRegex(
+                    LevelValidationError, "switch"):
                 parse_level(data)
         for item in (None, [], {}, {"type": "soft"}):
             with self.subTest(item=item), self.assertRaisesRegex(LevelValidationError, "switches"):
