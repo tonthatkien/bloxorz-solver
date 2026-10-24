@@ -2,40 +2,44 @@
 B2 — Ô cầu, công tắc mềm/nặng. Gia Hân; reviewer Bảo Bảo (`BB1311`).
 
 ## Đã làm gì
-- Tạo feature/han-B2-review từ B1 đã sửa, phục hồi runtime bridge/soft/heavy,
-  toggle/permanent nhiều targets và immutable TileRules từ backup B2 mới nhất.
-- Giữ nguyên code/tests B2 tại 7308a83, gồm hai regression soft/heavy trên fragile
-  đã bổ sung sau merge cũ. Không sửa State/Game/schema hay logic gameplay.
-- Chỉ thêm B2 files, AI usage B2 và CI phục vụ PR base feature/han-B1.
-- PR này thay thế phần review B2 của PR #5 cũ (đã merged vào B1, nay nội dung đã revert).
+- Runtime bridge/soft/heavy, toggle/permanent nhiều targets, immutable TileRules và
+  landing rules; snapshot và State không bị thay đổi tại chỗ.
+- Cập nhật dependency B1 theo D1–D4 PR #9 bằng merge bình thường B1 → B2, không rewrite.
+- Thay sáu fixture/test chồng ô bằng cấu hình hợp lệ. Giữ kiểm tra fragile, toàn footprint,
+  rơi trước effects và rơi sau khi switch đóng cầu đang đỡ; thêm regression ID63/hash State.
+- Giữ Switch.set/JSON "set", entry-trigger, thứ tự tọa độ; không đổi runtime game/tiles.py
+  trong lần sửa này. Giữ đủ bảy integration tests dùng roll thật A1.
 
 ## Cách kiểm tra
 ```bash
 python -m unittest discover -s tests -t .
+python -m unittest tests.test_tiles tests.test_tiles_a1
 python main.py levels/g3_switch_demo.json
 git diff feature/han-B1...feature/han-B2-review --name-only
 git diff --check
 ```
-B2-review: **115 PASS, 0 FAIL, 0 SKIP** (đã có A1 từ main).
-B1 chạy riêng: **61 PASS, 0 FAIL, 0 SKIP**.
-B2 code/test blobs khớp backup 7308a83; B1 fixes không bị sửa. Smoke và diff check thành công.
+Toàn branch: **118 PASS, 0 FAIL, 0 SKIP**. Riêng B2: **55 PASS**; B1 riêng: **63 PASS**.
+Smoke và diff/style pass. CI xem trong Checks trên head mới.
 
 ## Checklist của người làm
-- [x] Nhánh/commit theo quy ước B2, giữ nguyên nhánh B2 cũ
-- [x] Diff so với base B1 chỉ chứa B2, không duplicate changes B1
-- [x] Đã chạy toàn bộ unit/regression tests thực tế
-- [x] Có tests cho bridges, footprint, soft/heavy, toggle/permanent, immutability
-- [x] Không đổi State/Game/SearchResult/JSON contract
+- [x] Branch/commit theo quy ước B2, giữ nhánh B2 cũ
+- [x] Diff so với B1 chỉ chứa B2; thay đổi B1 nằm ở dependency
+- [x] Đã chạy toàn bộ unittest và xanh
+- [x] Có tests cho bridge, footprint, soft/heavy, toggle/permanent, immutability
+- [x] Không đổi State/Game/SearchResult; nhận Level theo validation D1–D4 PR #9
 - [x] Không TODO B2, print gỡ lỗi hoặc file rác trong diff
 - [x] Đã ghi docs/AI_USAGE_LOG.md
 - [ ] Người làm/reviewer xác nhận hiểu toàn bộ bản cập nhật
-- [ ] Reviewer đã xem head mới và được thông báo trong nhóm
+- [ ] Reviewer kiểm tra head mới và thông báo nhóm
+- [ ] Quy trình đổi hợp đồng theo CONTRIBUTING §7 hoàn tất ở PR #9/nhóm chat
 
 ## Ghi chú cho người review
-Dependency: **B1 #4**. Base: feature/han-B1; head: feature/han-B2-review.
-Reviewer B2 BB1311 được Gia Hân xác nhận lại sau khi đối chiếu tracker.
-PR #5 và branch B2 cũ được giữ nguyên; không sửa/xóa lịch sử đó.
-**Không merge PR B2 này vào B1.** Chờ B1 merge vào main, kiểm tra ancestry/diff rồi chuyển
-base sang main nếu chỉ còn B2. Nếu cần rewrite lịch sử phải xin phép người dùng trước.
-Không tự approve/merge. CI cần xác minh trên head mới sau khi tạo PR.
-A1 đã merge; tích hợp Game A2/C3 vẫn là bước sau, ngoài phạm vi sửa Git này.
+Dependency: **B1 #4**; hợp đồng: **PR #9**, chưa merge tại thời điểm rà soát.
+Gia Hân yêu cầu áp dụng D1–D4; chưa có bằng chứng Duy/Bảo xác nhận D3 trong chat
+hoặc cả nhóm đã hoàn tất §7. Cần chốt trước merge, không xác nhận thay nhóm.
+
+Base feature/han-B1; head feature/han-B2-review. Reviewer BB1311 đã được Gia Hân xác nhận.
+PR #5 và branch B2 cũ giữ nguyên; PR này thay thế phần review B2 của PR #5.
+**Không merge PR này vào B1.** Sau B1 merge vào main, kiểm tra ancestry/diff rồi mới
+chuyển base B2; nếu cần rewrite phải xin phép. Không tự approve/merge/resolve threads.
+A1 đã merge; tích hợp Game A2/C3 là bước sau, ngoài phạm vi B1/B2.

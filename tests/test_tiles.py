@@ -3,6 +3,7 @@ import copy
 import unittest
 from dataclasses import FrozenInstanceError, replace
 from typing import Optional
+from unittest.mock import patch
 
 from game.game import Game
 from game.level_loader import Level, parse_level
@@ -90,35 +91,36 @@ class TestTileSupport(unittest.TestCase):
         self.assertFalse(rules.is_bridge_open((0, 0), 1))
         self.assertFalse(rules.is_bridge_open((-1, 0), 1))
 
-    def test_soft_switch_on_fragile_can_be_pressed_while_lying(self):
-        level = switch_level("soft")
-        level.fragile.add((1, 1))
-        rules = TileRules.from_level(level)
-        old = State(0, 0)
-        self.assertIsNone(rules.resolve_landing(old, State(1, 1)))
-        for orientation in (HORIZ, VERT):
+    def test_soft_switch_next_to_fragile_can_be_pressed_while_lying(self):
+        for orientation, fragile_pos in ((HORIZ, [1, 2]), (VERT, [2, 1])):
             with self.subTest(orientation=orientation):
+                data = dict(basic_level(), fragile=[fragile_pos], bridges=[
+                    {"id": 7, "pos": [2, 4]}], switches=[
+                    {"type": "soft", "pos": [1, 1], "targets": [7]}])
+                rules = TileRules.from_level(parse_level(data))
+                old = State(0, 0)
+                self.assertIsNone(rules.resolve_landing(old, State(*fragile_pos)))
                 self.assertEqual(rules.resolve_landing(old, State(1, 1, orientation)),
                                  State(1, 1, orientation, bridges=1 << 7))
-        self.assertEqual(old.bridges, 0)
+                self.assertEqual(old.bridges, 0)
 
-    def test_heavy_switch_on_fragile_cannot_bypass_weight_rule(self):
-        level = switch_level("heavy")
-        level.fragile.add((1, 1))
-        rules = TileRules.from_level(level)
-        old = State(0, 0)
-        self.assertIsNone(rules.resolve_landing(old, State(1, 1)))
-        for orientation in (HORIZ, VERT):
+    def test_heavy_switch_next_to_fragile_still_requires_standing_pressure(self):
+        for orientation, fragile_pos in ((HORIZ, [1, 2]), (VERT, [2, 1])):
             with self.subTest(orientation=orientation):
-                landed = State(1, 1, orientation)
+                data = dict(basic_level(), fragile=[fragile_pos], bridges=[
+                    {"id": 7, "pos": [2, 4]}], switches=[
+                    {"type": "heavy", "pos": [1, 1], "targets": [7]}])
+                rules = TileRules.from_level(parse_level(data))
+                old, landed = State(0, 0), State(1, 1, orientation)
+                self.assertIsNone(rules.resolve_landing(old, State(*fragile_pos)))
                 self.assertEqual(rules.resolve_landing(old, landed), landed)
                 self.assertEqual(rules.detect_triggered_switches(old, landed), ())
-        self.assertEqual(level.initial_bridge_mask(), 0)
+                self.assertEqual(rules.resolve_landing(old, State(1, 1)),
+                                 State(1, 1, bridges=1 << 7))
 
-    def test_fragile_and_bridge_overlap_compose_instead_of_losing_weight_rule(self):
-        data = basic_level()
-        data["bridges"] = [{"id": 0, "pos": [1, 1]}]
-        data["fragile"] = [[1, 1]]
+    def test_adjacent_fragile_and_bridge_both_constrain_the_footprint(self):
+        data = dict(basic_level(), fragile=[[1, 1]], bridges=[
+            {"id": 0, "pos": [1, 2]}])
         rules = TileRules.from_level(parse_level(data))
         self.assertFalse(rules.is_supported(State(1, 1, bridges=1)))
         self.assertTrue(rules.is_supported(State(1, 1, HORIZ, bridges=1)))
@@ -314,12 +316,11 @@ class TestLandingIntegration(unittest.TestCase):
         self.assertEqual(crossed, State(2, 4, bridges=1 << 7))
 
     def test_pre_effect_support_prevents_opening_bridge_under_falling_block(self):
-        level = switch_level()
-        level.switches[(1, 1)].pos = (2, 3)
-        level.switches = {(2, 3): level.switches[(1, 1)]}
-        rules = TileRules.from_level(level)
-        # Candidate covers both closed bridges, even though one cell carries a switch.
-        self.assertIsNone(rules.resolve_landing(State(0, 0), State(2, 3, HORIZ)))
+        data = dict(basic_level(), bridges=[{"id": 7, "pos": [1, 2]}], switches=[
+            {"type": "soft", "pos": [1, 1], "targets": [7]}])
+        rules = TileRules.from_level(parse_level(data))
+        # The switch and the closed bridge occupy separate cells under the footprint.
+        self.assertIsNone(rules.resolve_landing(State(0, 0), State(1, 1, HORIZ)))
 
     def test_switch_closing_occupied_bridge_rejects_landing_after_effect(self):
         data = basic_level()
@@ -332,21 +333,25 @@ class TestLandingIntegration(unittest.TestCase):
         self.assertEqual(old.bridges, 1 << 7)
         self.assertTrue(rules.is_bridge_open((1, 2), old.bridges))
 
-    def test_switch_on_bridge_that_closes_itself_rejects_landing(self):
-        data = basic_level()
-        data["bridges"] = [{"id": 0, "pos": [1, 1], "open": True}]
-        data["switches"] = [{"type": "heavy", "pos": [1, 1], "targets": [0],
-                             "mode": "permanent", "set": "close"}]
+    def test_permanent_close_of_adjacent_occupied_bridge_rejects_landing(self):
+        data = dict(basic_level(), bridges=[
+            {"id": 0, "pos": [1, 2], "open": True}], switches=[
+            {"type": "soft", "pos": [1, 1], "targets": [0],
+             "mode": "permanent", "set": "close"}])
         rules = TileRules.from_level(parse_level(data))
-        self.assertIsNone(rules.resolve_landing(State(0, 0, bridges=1), State(1, 1)))
+        old, landed = State(0, 1, HORIZ, bridges=1), State(1, 1, HORIZ)
+        self.assertTrue(rules.is_supported(replace(landed, bridges=old.bridges)))
+        self.assertIsNone(rules.resolve_landing(old, landed))
+        self.assertEqual(old.bridges, 1)
 
     def test_lying_to_standing_fragile_fails_before_switch_effects(self):
-        data = basic_level()
-        data["fragile"] = [[1, 3]]
-        data["bridges"] = [{"id": 2, "pos": [3, 3]}]
-        data["switches"] = [{"type": "soft", "pos": [1, 3], "targets": [2]}]
+        data = dict(basic_level(), fragile=[[1, 3]], bridges=[
+            {"id": 2, "pos": [3, 3]}], switches=[
+            {"type": "soft", "pos": [2, 1], "targets": [2]}])
         rules = TileRules.from_level(parse_level(data))
-        self.assertIsNone(rules.resolve_landing(State(1, 1, HORIZ), State(1, 3)))
+        with patch.object(TileRules, "apply_switch_effects") as effects:
+            self.assertIsNone(rules.resolve_landing(State(1, 1, HORIZ), State(1, 3)))
+            effects.assert_not_called()
 
     def test_standing_to_lying_on_fragile_succeeds(self):
         data = dict(basic_level(), fragile=[[1, 2], [1, 3]])
@@ -403,6 +408,23 @@ class TestLandingIntegration(unittest.TestCase):
         self.assertEqual((result.r, result.c, result.orient), (0, 0, STAND))
         self.assertEqual(result.bridges, 1 << 7)
         self.assertEqual(pose.bridges, 0)
+
+    def test_bridge_id_63_round_trip_preserves_unrelated_bits_and_state_hashing(self):
+        data = dict(basic_level(), bridges=[
+            {"id": 63, "pos": [2, 4]}, {"id": 0, "pos": [2, 3], "open": True}],
+            switches=[{"type": "soft", "pos": [1, 1], "targets": [63]}])
+        level = parse_level(data)
+        rules = TileRules.from_level(level)
+        old = State(0, 0, bridges=level.initial_bridge_mask())
+        opened = rules.resolve_landing(old, State(1, 1))
+        self.assertEqual(opened, State(1, 1, bridges=(1 << 63) | 1))
+        self.assertTrue(rules.is_supported(State(2, 4, bridges=opened.bridges)))
+        left = rules.resolve_landing(opened, State(0, 0))
+        closed = rules.resolve_landing(left, State(1, 1))
+        self.assertEqual(closed, State(1, 1, bridges=1))
+        self.assertFalse(rules.is_supported(State(2, 4, bridges=closed.bridges)))
+        self.assertEqual(len({opened, closed}), 2)
+        self.assertEqual(old.bridges, 1)
 
     def test_initial_state_and_restart_recover_initial_bridge_mask(self):
         level = parse_level(advanced_level())

@@ -1,5 +1,20 @@
 # B2 Implementation Report
 
+> Cập nhật hiện tại — 24/10/2026, theo D1–D4 của PR #9 và yêu cầu của Gia Hân.
+> Đã merge dependency B1 mới vào B2 theo chiều B1 → B2, không rewrite/force-push/conflict.
+> Các phần mô tả overlap và số liệu trước ngày này bên dưới là lịch sử.
+>
+> - Runtime game/tiles.py giữ nguyên vì đã đáp ứng hợp đồng sau loader validation.
+> - Sáu test/fixture chồng loại ô được thay bằng sàn/switch/fragile/bridge ở các ô riêng.
+>   Giữ coverage trọng lượng, toàn bộ footprint, support trước và sau switch effects.
+> - Thêm regression ID63: mở/đóng đúng bit, giữ bit0, State vẫn hashable.
+> - Giữ đủ bảy test dùng A1 roll thật và test snapshot độc lập dữ liệu đầu vào.
+>
+> Kiểm chứng: toàn suite **118 pass, 0 fail/skip**; riêng B2 **55 pass**, B1 **63 pass**.
+> Ba fixtures có sẵn vẫn load được, smoke và diff/style pass. Game A2/C3 chưa tích hợp.
+> PR #8 vẫn base B1; không merge B2 vào B1. Hợp đồng phụ thuộc PR #9 đang mở;
+> Duy/Bảo cần xác nhận D3 trong chat như tài liệu yêu cầu, chưa xác nhận thay nhóm.
+
 > Trạng thái sau tách ngày 23/10/2026: feature/han-B2-review dựa trên B1 đã sửa
 > a7d81db. B2 code/tests được phục hồi nguyên bản từ backup 7308a83, gồm cả hai test
 > bổ sung sau merge cũ. Toàn suite thực tế: 115 pass, 0 fail/skip (đã có A1).
