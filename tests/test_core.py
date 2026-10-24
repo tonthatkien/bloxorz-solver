@@ -1,10 +1,12 @@
 """Unit test lõi game: Board và Block (A1)."""
-import unittest
 import json
 import os
+import unittest
 
-from game.block import DOWN, HORIZ, LEFT, RIGHT, STAND, UP, VERT, Block
+from game.block import DOWN, LEFT, RIGHT, UP, Block
 from game.board import Board
+from game.level_loader import load_level
+from game.state import HORIZ, STAND, VERT
 
 BOARD = Board.from_strings([
     "###..",
@@ -77,7 +79,6 @@ class TestBoard(unittest.TestCase):
         self.assertTrue(BOARD.is_goal(2, 2))
         self.assertTrue(BOARD.is_floor(2, 2))
         self.assertFalse(BOARD.is_floor(0, 3))
-        self.assertEqual(BOARD.goal, (2, 2))
 
     def test_outside_grid_is_not_floor(self):
         self.assertFalse(BOARD.is_floor(-1, 0))
@@ -102,6 +103,10 @@ class TestBoard(unittest.TestCase):
         self.assertFalse(BOARD.is_win(Block(2, 2, HORIZ)))
         self.assertFalse(BOARD.is_win(Block(2, 1, HORIZ)))
 
+    def test_vertical_over_goal_does_not_win(self):
+        self.assertFalse(BOARD.is_win(Block(2, 2, VERT)))
+        self.assertFalse(BOARD.is_win(Block(1, 2, VERT)))
+
     def test_standing_off_goal_does_not_win(self):
         self.assertFalse(BOARD.is_win(Block(0, 0, STAND)))
 
@@ -109,11 +114,17 @@ class TestBoard(unittest.TestCase):
         directions = [d for d, _ in BOARD.valid_moves(Block(0, 0, STAND))]
         self.assertEqual(directions, [DOWN, RIGHT])
 
+    def test_valid_moves_order_with_three_moves(self):
+        # Từ ô đích: D ra ngoài lưới nên chỉ còn U, L, R.
+        directions = [d for d, _ in BOARD.valid_moves(Block(2, 2, STAND))]
+        self.assertEqual(directions, [UP, LEFT, RIGHT])
+
+
 LEVEL_DIR = os.path.join(os.path.dirname(__file__), "..", "levels")  # chỉnh theo repo
 LEVEL_FILES = ["g1_basic_01.json", "g2_fragile_01.json", "g3_switch_demo.json"]
 
 
-def load_level(name):
+def read_json(name):
     with open(os.path.join(LEVEL_DIR, name), encoding="utf-8") as f:
         return json.load(f)
 
@@ -122,7 +133,7 @@ class TestJsonLevels(unittest.TestCase):
     def test_hash_is_floor_dot_is_void(self):
         for name in LEVEL_FILES:
             with self.subTest(level=name):
-                data = load_level(name)
+                data = read_json(name)
                 board = Board.from_strings(data["grid"])
                 for r, line in enumerate(data["grid"]):
                     for c, ch in enumerate(line):
@@ -134,17 +145,25 @@ class TestJsonLevels(unittest.TestCase):
     def test_goal_matches_json(self):
         for name in LEVEL_FILES:
             with self.subTest(level=name):
-                data = load_level(name)
+                data = read_json(name)
                 board = Board.from_strings(data["grid"])
-                self.assertEqual(board.goal, tuple(data["goal"]))
-                self.assertTrue(board.is_win(Block(*data["goal"], STAND)))
+                goal = tuple(data["goal"])
+                self.assertTrue(board.is_goal(*goal))
+                self.assertTrue(board.is_win(Block(*goal, STAND)))
 
     def test_start_is_valid_standing_position(self):
         for name in LEVEL_FILES:
             with self.subTest(level=name):
-                data = load_level(name)
+                data = read_json(name)
                 board = Board.from_strings(data["grid"])
                 self.assertTrue(board.is_valid(Block(*data["start"], STAND)))
+
+    def test_levels_pass_loader_validation(self):
+        # Level mẫu phải qua validation mới (cấm ô đặc biệt chồng nhau, ID cầu 0-63).
+        for name in LEVEL_FILES:
+            with self.subTest(level=name):
+                load_level(os.path.join(LEVEL_DIR, name))
+
 
 if __name__ == "__main__":
     unittest.main()
