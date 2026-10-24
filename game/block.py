@@ -2,10 +2,7 @@
 from dataclasses import dataclass
 from typing import List, Tuple
 
-# Tư thế của khối
-STAND = 0   # đứng: chiếm (r, c)
-HORIZ = 1   # nằm ngang: chiếm (r, c) và (r, c + 1)
-VERT = 2    # nằm dọc: chiếm (r, c) và (r + 1, c)
+from .state import HORIZ, STAND, VERT  # nguồn sự thật duy nhất của tư thế khối
 
 # Hướng đi, theo thứ tự cố định của get_successors
 UP, DOWN, LEFT, RIGHT = "U", "D", "L", "R"
