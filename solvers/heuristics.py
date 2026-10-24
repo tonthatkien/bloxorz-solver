@@ -40,10 +40,11 @@ def step_cost(game, old_state: State, action: str, new_state: State) -> float:
     if old_state.split is None and new_state.split is not None:
         return COST_SWITCH
 
-    # Kiểm tra có đè lên ô dễ vỡ 
-    for cell in new_cells:
-        if cell in level.fragile:
-            return COST_FRAGILE
+    # Kiểm tra có đè lên ô dễ vỡ
+    if new_state.split is None:
+        for cell in new_cells:
+            if cell in level.fragile:
+                return COST_FRAGILE
 
     return COST_NORMAL
 

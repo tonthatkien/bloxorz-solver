@@ -12,7 +12,7 @@ Nếu chi phí mọi bước = 1, UCS suy biến thành BFS (chi phí = độ s�
 | Hành động / Tình huống | Hằng số | Giá trị | Lý do thiết kế |
 |:---|:---|:---:|:---|
 | Lăn bình thường trên ô sàn | `COST_NORMAL` | 1.0 | Chi phí cơ sở đơn vị. |
-| Lăn khiến khối đè lên ô dễ vỡ (fragile) | `COST_FRAGILE` | 1.5 | Ô dễ vỡ giới hạn nghiêm trọng các nước đi kế tiếp (không thể đứng lên), đại diện cho nguy cơ chiến thuật cao hơn. |
+| Lăn khiến **khối 1×1×2** đè lên ô dễ vỡ (`split(s')=None`) | `COST_FRAGILE` | 1.5 | Ô dễ vỡ giới hạn nghiêm trọng các nước đi kế tiếp (không thể đứng lên), đại diện cho nguy cơ chiến thuật cao hơn. Cube đơn 1×1×1 (split≠None) không áp dụng. |
 | Lăn kích hoạt công tắc (soft/heavy/split) | `COST_SWITCH` | 1.2 | Kích hoạt cơ chế môi trường (mở/đóng cầu, dịch khối) — thay đổi cấu trúc bản đồ nên chi phí cao hơn lăn thường. |
 | Hoán đổi quyền điều khiển cube (`"S"`) | `COST_SWAP` | 0.5 | Không di chuyển vị trí vật lý trên bàn cờ → chi phí thấp nhất. |
 
@@ -24,10 +24,15 @@ Mọi hằng số chi phí đều dương và $c_{min} = 1.0 > 0$. Điều này 
 
 ### 1.4. Định nghĩa
 
+Hàm chi phí áp dụng theo thứ tự ưu tiên:
+
 $$c(s, a, s') = \begin{cases}
-0.5 & \text{nếu } a = \texttt{"S"} \text{ (hoán đổi cube)} \\
-1.2 & \text{nếu công tắc được kích hoạt: } bridges(s) \ne bridges(s') \text{ hoặc } split(s) \ne split(s') \\
-1.5 & \text{nếu một phần khối mới }\in \text{fragile tiles của level} \\
+0.5 & \text{nếu } a = \texttt{"S"} \text{ (hoán đổi cube)} \\[6pt]
+1.2 & \text{nếu công tắc được kích hoạt:} \\
+    & \quad bridges(s) \ne bridges(s') \\
+    & \quad \text{hoặc } split(s) = \varnothing \wedge split(s') \ne \varnothing \\[6pt]
+1.5 & \text{nếu } split(s') = \varnothing \;\wedge\; \exists \text{ ô thuộc khối mới} \in \text{fragile} \\
+    & \quad \text{(chỉ áp dụng khối 1×1×2; cube đơn không bị)} \\[6pt]
 1.0 & \text{trường hợp còn lại (lăn thông thường)}
 \end{cases}$$
 
@@ -137,10 +142,10 @@ $$h_{relaxed}(s) \le h_{relaxed}(s') + c_{min} \le h_{relaxed}(s') + c(s,a,s') $
 
 | Heuristic | Admissible | Consistent | Chất lượng cận dưới | Chi phí tính toán |
 |:---|:---:|:---:|:---|:---|
-| $h_0$ (Baseline) | ✅ | ✅ | Thấp nhất — h=0 (không cung cấp thông tin) | O(1) |
-| $h_{manhattan}$ | ✅ | ✅ | Trung bình — Manhattan không phản ánh vật cản | O(1) |
-| $h_{manhattan\_orient}$ | ✅ | ✅ | Tốt hơn — cộng phạt tư thế khi gần goal | O(1) |
-| $h_{relaxed\_maze}$ | ✅ | ✅ | Chặt nhất — BFS trên lưới nới lỏng | O(R×C) preprocessing , O(1) tra cứu |
+| $h_0$ (Baseline) | Có | Có | Thấp nhất — h=0 (không cung cấp thông tin) | O(1) |
+| $h_{manhattan}$ | Có | Có | Trung bình — Manhattan không phản ánh vật cản | O(1) |
+| $h_{manhattan\_orient}$ | Có | Có | Tốt hơn — cộng phạt tư thế khi gần goal | O(1) |
+| $h_{relaxed\_maze}$ | Có | Có | Chặt nhất — BFS trên lưới nới lỏng | O(R×C) preprocessing , O(1) tra cứu |
 
 Heuristic chặt hơn tức $h_2(s) \ge h_1(s)$ $\forall s$ → A* với $h_2$ mở rộng ít nút hơn hoặc bằng A* với $h_1$.  
 Thứ tự domination: $h_{relaxed\_maze} \ge h_{manhattan\_orient} \ge h_{manhattan} \ge h_0$.
