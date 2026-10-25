@@ -16,7 +16,7 @@ phân biệt các loại bước đi:
 
 Chi phí mọi hành động đều lớn hơn 0 (COST_SWAP là mức thấp nhất), nên trên không gian trạng thái
 hữu hạn UCS vẫn kết thúc. Riêng các chứng minh heuristic hình học dưới đây dùng
-COST_MIN = COST_NORMAL = 1.0 làm cận dưới cho một lần lăn. Đây không phải là cận dưới
+COST\_MIN = COST_NORMAL = 1.0 làm cận dưới cho một lần lăn. Đây không phải là cận dưới
 cho mọi hành động, vì hành động S chỉ tốn 0.5.
 
 ### 2. Định nghĩa theo trạng thái
@@ -67,7 +67,7 @@ màn có split switch. Đây là lựa chọn để giữ tính tối ưu.
 
 Trên các màn này, trạng thái split không thể được tạo bởi luật chơi và hành động S không xuất
 hiện. Do đó, mọi chuyển trạng thái mà các heuristic hình học xét đều là lần lăn, có chi phí ít nhất
-COST_MIN = 1.0. Các chứng minh đều áp dụng cho màn chơi không có split switch.
+COST\_MIN = 1.0. Các chứng minh đều áp dụng cho màn chơi không có split switch.
 
 Ký hiệu:
 
@@ -77,8 +77,8 @@ Ký hiệu:
 | h*(s) | Chi phí tối ưu thật từ s tới goal. |
 | (r_c, c_c) | Tâm hình học của khối; phụ thuộc vào STAND, HORIZ, VERT. |
 | (r_g, c_g) | Tọa độ goal. |
-| D(s) = $$\text{abs}(r_c - r_g) + \text{abs}(c_c - c_g)$$ | Khoảng cách Manhattan từ tâm khối tới goal. |
-| c_roll_min | Cận dưới chi phí một lần lăn; bằng COST_MIN = 1.0. |
+| D(s) = abs(r_c - r_g) + abs(c_c - c_g) | Khoảng cách Manhattan từ tâm khối tới goal. |
+| c_roll_min | Cận dưới chi phí một lần lăn; bằng COST\_MIN = 1.0. |
 
 Với STAND, tâm là (r, c); với HORIZ, tâm là (r, c + 0.5); với VERT, tâm là (r + 0.5, c).
 Một lần lăn đi theo đúng một trục và làm tâm dịch tối đa 1.5 ô theo trục đó.
@@ -102,7 +102,7 @@ $$
 h_{manhattan}(s) =
 \begin{cases}
 0 & \text{nếu có split} \\
-\left\lceil D(s)/2 \right\rceil \cdot COST\_MIN & \text{các trường hợp còn lại}
+\left\lceil D(s)/2 \right\rceil \cdot \text{COST\_MIN} & \text{các trường hợp còn lại}
 \end{cases}
 $$
 
@@ -114,7 +114,7 @@ cách Manhattan không thể giảm quá 1.5; dùng cận lỏng hơn là 2:
 $$D(s) \le D(s')+2.$$
 
 Nếu một lời giải cần k lần lăn để tới goal thì D(goal)=0, nên D(s)≤2k và
-k≥ceil(D(s)/2). Mỗi lần lăn tốn ít nhất COST_MIN, vì vậy:
+k≥ceil(D(s)/2). Mỗi lần lăn tốn ít nhất COST\_MIN, vì vậy:
 
 $$
 h^*(s) \ge k\cdot COST\_MIN
@@ -126,7 +126,7 @@ Trên màn có split mechanics, heuristic bằng 0 nên vẫn không vượt qu�
 
 #### Consistency
 
-Trên màn không có split, mọi chuyển tiếp là lần lăn có chi phí c≥COST_MIN. Từ
+Trên màn không có split, mọi chuyển tiếp là lần lăn có chi phí c≥COST\_MIN. Từ
 D(s)≤D(s')+2:
 
 $$
@@ -135,7 +135,7 @@ $$
 = \left\lceil D(s')/2 \right\rceil+1.
 $$
 
-Nhân với COST_MIN thu được h(s)≤c(s,a,s')+h(s'). Trên màn có split, hai đầu chuyển tiếp
+Nhân với COST\_MIN thu được h(s)≤c(s,a,s')+h(s'). Trên màn có split, hai đầu chuyển tiếp
 đều có h=0, nên bất đẳng thức consistency cũng đúng.
 
 ### c) h_manhattan_orient — Manhattan theo tâm và tư thế
@@ -147,7 +147,7 @@ $$
 h_{manhattan\_orient}(s) =
 \begin{cases}
 0 & \text{nếu có split} \\
-\left\lceil D(s)/1.5 \right\rceil \cdot COST\_MIN & \text{các trường hợp còn lại}
+\left\lceil D(s)/1.5 \right\rceil \cdot \text{COST\_MIN} & \text{các trường hợp còn lại}
 \end{cases}
 $$
 
@@ -155,7 +155,7 @@ $$
 
 Mỗi lần lăn làm tâm dịch tối đa 1.5 ô theo một trục, nên D giảm tối đa 1.5. Nếu cần k lần
 lăn để tới goal thì D(s) ≤ 1.5k, suy ra k ≥ ceil(D(s)/1.5). Mỗi lần lăn tốn ít nhất
-COST_MIN, do đó h_manhattan_orient(s) ≤ h*(s). Với split mechanics, hàm trả 0 nên cũng
+COST\_MIN, do đó h_manhattan_orient(s) ≤ h*(s). Với split mechanics, hàm trả 0 nên cũng
 admissible.
 
 #### Consistency
@@ -168,7 +168,7 @@ $$
 = \left\lceil D(s')/1.5 \right\rceil+1.
 $$
 
-Nhân với COST_MIN và dùng c(s,a,s')≥COST_MIN suy ra consistency. Trên màn split, cả
+Nhân với COST\_MIN và dùng c(s,a,s')≥COST\_MIN suy ra consistency. Trên màn split, cả
 hai giá trị heuristic bằng 0.
 
 ### d) h_relaxed_maze — khoảng cách BFS trên lưới nới lỏng
@@ -183,7 +183,7 @@ $$
 h_{relaxed\_maze}(s) =
 \begin{cases}
 0 & \text{nếu có split} \\
-\left\lceil d(s)/2 \right\rceil \cdot COST\_MIN & \text{các trường hợp còn lại}
+\left\lceil d(s)/2 \right\rceil \cdot \text{COST\_MIN} & \text{các trường hợp còn lại}
 \end{cases}
 $$
 
@@ -194,11 +194,11 @@ trên lưới nới lỏng, hàm trả math.inf; khi đó không có đường h
 
 Trong một lần lăn, ô tham chiếu gần goal nhất có thể đổi sang ô kia của khối và dịch tối đa hai
 cạnh trên lưới. Do đó d(s) ≤ d(s')+2. Sau k lần lăn tới trạng thái goal, d(goal) = 0, nên
-d(s) ≤ 2k và k ≥ ceil(d(s)/2). Mỗi lần lăn có chi phí ít nhất COST_MIN, suy ra:
+d(s) ≤ 2k và k ≥ ceil(d(s)/2). Mỗi lần lăn có chi phí ít nhất COST\_MIN, suy ra:
 
 $$
-h^*(s) \ge k \cdot COST\_MIN
-\ge \left\lceil d(s)/2 \right\rceil \cdot COST\_MIN
+h^*(s) \ge k \cdot \text{COST\_MIN}
+\ge \left\lceil d(s)/2 \right\rceil \cdot \text{COST\_MIN}
 =h_{relaxed\_maze}(s).
 $$
 
@@ -215,8 +215,8 @@ $$
 = \left\lceil d(s')/2 \right\rceil+1.
 $$
 
-Nhân với COST_MIN và dùng c(s,a,s') ≥ COST_MIN cho mọi lần lăn, ta có
-h(s) ≤ c(s,a,s') + h(s'). Với split mechanics, hai giá trị heuristic đều bằng 0.
+Nhân với COST\_MIN và dùng c(s,a,s') ≥ COST\_MIN cho mọi lần lăn, ta có
+x`h(s) ≤ c(s,a,s') + h(s'). Với split mechanics, hai giá trị heuristic đều bằng 0.
 
 ---
 
@@ -235,5 +235,5 @@ $$h_0(s) \le h_{manhattan}(s) \le h_{manhattan\_orient}(s).$$
 
 h_relaxed_maze và hai heuristic Manhattan nhìn chung không so sánh được: BFS xét vật
 cản của lưới nhưng dùng ô gần goal nhất, còn Manhattan dùng tâm khối. Nếu cần một heuristic kết
-hợp, max(h_manhattan_orient, h_relaxed_maze) vẫn admissible và consistent khi cả hai hàm thành
+hợp, max(h_manhattan_orient,  h_relaxed_maze) vẫn admissible và consistent khi cả hai hàm thành
 phần có các tính chất đó trên cùng màn chơi.
