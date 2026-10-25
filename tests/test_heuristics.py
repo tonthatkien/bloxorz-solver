@@ -4,7 +4,8 @@ import math
 import unittest
 from unittest.mock import MagicMock
 
-from game.level_loader import load_level
+from game.game import Game
+from game.level_loader import Level, load_level
 from game.state import HORIZ, STAND, VERT, State
 from solvers.heuristics import (
     COST_FRAGILE,
@@ -16,6 +17,7 @@ from solvers.heuristics import (
     h_manhattan_orient,
     h_relaxed_maze,
     h_zero,
+    make_cost_fn,
     step_cost,
 )
 
@@ -67,6 +69,14 @@ class TestStepCost(unittest.TestCase):
         # Sau khi kích hoạt công tắc soft tại (1,1): bridge 0 mở → bridges=1
         new = State(1, 1, STAND, bridges=1)
         self.assertAlmostEqual(step_cost(game, old, "R", new), COST_SWITCH)
+
+    def test_cost_callback_matches_game_signature(self) -> None:
+        """Factory trả callback ba tham số mà Game.step_cost có thể gọi."""
+        level = load_level("levels/g1_basic_01.json")
+        game = Game(level, cost_fn=make_cost_fn(level))
+        old = State(0, 0, STAND)
+        new = State(0, 0, HORIZ)
+        self.assertAlmostEqual(game.step_cost(old, "R", new), COST_NORMAL)
 
     def test_cost_min_is_positive(self) -> None:
         """Chi phí tối thiểu phải dương để UCS/A* hội tụ."""
@@ -142,22 +152,21 @@ class TestHManhattanOrient(unittest.TestCase):
             h_manhattan(self.game, s),
         )
 
-    def test_penalty_when_horiz_adjacent_goal(self) -> None:
-        """Khối HORIZ kề ngay goal (D=1) phải có phạt thêm COST_MIN."""
+    def test_one_roll_can_stand_on_goal_without_extra_penalty(self) -> None:
+        """HORIZ có thể tới goal và đứng lên trong cùng một lần lăn."""
         gr, gc = self.goal
-        # Centroid của HORIZ tại (gr, gc-1) là (gr, gc-0.5) → D=0.5 → ⌈0.25⌉=1 ≤ 2
-        s = State(gr, gc - 1, HORIZ)
-        base = h_manhattan(self.game, s)
-        with_penalty = h_manhattan_orient(self.game, s)
-        self.assertAlmostEqual(with_penalty, base + COST_MIN)
+        # HORIZ tại c=gc-2 lăn phải thành STAND tại goal; D tâm = 1.5.
+        s = State(gr, gc - 2, HORIZ)
+        self.assertAlmostEqual(h_manhattan_orient(self.game, s), COST_MIN)
 
-    def test_no_penalty_when_far(self) -> None:
-        """Khối HORIZ cách xa goal (D > 2) không bị phạt tư thế."""
+    def test_orientation_bound_uses_maximum_centroid_motion(self) -> None:
+        """Một lần lăn dịch tâm tối đa 1.5 ô, nên h dùng ceil(D / 1.5)."""
         s = State(0, 0, HORIZ)
-        self.assertAlmostEqual(
-            h_manhattan_orient(self.game, s),
-            h_manhattan(self.game, s),
-        )
+        rc, cc = 0.0, 0.5
+        gr, gc = self.goal
+        distance = abs(rc - gr) + abs(cc - gc)
+        expected = math.ceil(distance / 1.5) * COST_MIN
+        self.assertAlmostEqual(h_manhattan_orient(self.game, s), expected)
 
     def test_orient_ge_manhattan(self) -> None:
         """h_manhattan_orient ≥ h_manhattan với mọi trạng thái."""
@@ -169,6 +178,22 @@ class TestHManhattanOrient(unittest.TestCase):
                         h_manhattan_orient(self.game, s),
                         h_manhattan(self.game, s),
                     )
+
+    def test_split_switch_level_uses_zero_heuristic(self) -> None:
+        """Teleport do split switch làm mất hiệu lực của cận hình học."""
+        split_game = _make_game("levels/g3_switch_demo.json")
+        state = State(0, 0, STAND)
+        self.assertEqual(h_manhattan(split_game, state), 0.0)
+        self.assertEqual(h_manhattan_orient(split_game, state), 0.0)
+        self.assertEqual(h_relaxed_maze(split_game, state), 0.0)
+
+    def test_split_state_uses_zero_heuristic(self) -> None:
+        """Đổi cube active với S có thể làm cận dựa trên một cube mất consistency."""
+        goal = self.goal
+        state = State(0, 0, STAND, split=((0, 0), goal))
+        self.assertEqual(h_manhattan(self.game, state), 0.0)
+        self.assertEqual(h_manhattan_orient(self.game, state), 0.0)
+        self.assertEqual(h_relaxed_maze(self.game, state), 0.0)
 
 
 class TestHRelaxedMaze(unittest.TestCase):
@@ -189,10 +214,13 @@ class TestHRelaxedMaze(unittest.TestCase):
         val = h_relaxed_maze(self.game, State(gr, gc, STAND))
         self.assertAlmostEqual(val, 0.0)
 
-    def test_relaxed_le_manhattan_times_cost(self) -> None:
-        """h_relaxed ≤ h* nên phải ≤ 2 × h_manhattan trên lưới 5x10 nhỏ."""
-        # Kiểm tra ≥ 0; admissible là đặc tính lý thuyết, không thể test trực tiếp h*
-        # nhưng h_relaxed ≤ h_manhattan vì BFS đường thẳng ≤ Manhattan.
+    def test_relaxed_can_be_less_than_centroid_manhattan(self) -> None:
+        """BFS tới ô gần goal nhất có thể nhỏ hơn Manhattan đo từ tâm khối."""
+        state = State(2, 2, HORIZ)
+        self.assertLess(h_relaxed_maze(self.game, state), h_manhattan(self.game, state))
+
+    def test_non_negative_for_all_grid_coordinates(self) -> None:
+        """Heuristic BFS không âm trên toàn bộ tọa độ lưới."""
         for r in range(5):
             for c in range(10):
                 s = State(r, c, STAND)
@@ -205,12 +233,32 @@ class TestHRelaxedMaze(unittest.TestCase):
         v2 = h_relaxed_maze(self.game, s)
         self.assertAlmostEqual(v1, v2)
 
-    def test_split_state_uses_active_cube(self) -> None:
-        """Khi split != None dùng vị trí cube đang điều khiển (split[0])."""
+    def test_split_state_uses_zero_heuristic(self) -> None:
+        """Không dùng vị trí cube active vì hành động S có thể đổi cube với giá thấp."""
         gr, gc = self.goal
-        # split[0] chính là goal → h_relaxed phải = 0
-        s = State(0, 0, STAND, split=((gr, gc), (0, 0)))
+        s = State(0, 0, STAND, split=((0, 0), (gr, gc)))
         self.assertAlmostEqual(h_relaxed_maze(self.game, s), 0.0)
+
+    def test_split_switch_level_uses_zero_heuristic(self) -> None:
+        """Heuristic BFS trả 0 cả trước khi split switch dịch chuyển cube."""
+        split_game = _make_game("levels/g3_switch_demo.json")
+        state = State(0, 0, STAND)
+        self.assertEqual(h_relaxed_maze(split_game, state), 0.0)
+
+    def test_unreachable_relaxed_cell_returns_infinity(self) -> None:
+        """Không có đường trên lưới nới lỏng thì h_relaxed trả math.inf."""
+        level = Level(
+            name="disconnected",
+            grid=["#..", "...", "..G"],
+            start=(0, 0),
+            goal=(2, 2),
+            fragile=set(),
+            bridges={},
+            switches={},
+        )
+        game = MagicMock()
+        game.level = level
+        self.assertTrue(math.isinf(h_relaxed_maze(game, State(0, 0, STAND))))
 
 
 if __name__ == "__main__":
