@@ -115,6 +115,10 @@ def h_zero(game: Game, state: State) -> float:
 
 # Heuristic 1: Khoảng cách Manhattan tỷ lệ hoá (h_manhattan)
 def h_manhattan(game: Game, state: State) -> float:
+    """⌈D/2⌉ lần lăn, D = Manhattan từ tâm khối tới goal.
+    Mỗi lần lăn dịch tâm ≤ 1.5 ô và tốn ≥ COST_MIN nên admissible và consistent.
+    Trả 0 nếu màn có split (xem doc, mục II.1).
+    """
     if _uses_split_mechanics(game.level, state):
         return 0.0
 
@@ -126,6 +130,9 @@ def h_manhattan(game: Game, state: State) -> float:
 
 # Heuristic 2: Manhattan orient
 def h_manhattan_orient(game: Game, state: State) -> float:
+    """⌈D/1.5⌉ lần lăn: chặt hơn h_manhattan vì tâm dịch tối đa 1.5 ô mỗi lần lăn.
+    Admissible và consistent với COST_MIN; trả 0 nếu màn có split.
+    """
     if _uses_split_mechanics(game.level, state):
         return 0.0
 
@@ -156,6 +163,11 @@ class _RelaxedMazeCache:
 
 
 def h_relaxed_maze(game: Game, state: State) -> float:
+    """⌈d/2⌉ lần lăn, d = khoảng cách BFS (lưới nới lỏng) từ ô khối gần goal nhất.
+
+    Mỗi lần lăn đưa ô tham chiếu đi tối đa 2 ô lưới nên admissible và consistent;
+    trả math.inf nếu goal không nối tới; trả 0 nếu màn có split.
+    """
     level = game.level
     if _uses_split_mechanics(level, state):
         return 0.0
