@@ -1,5 +1,5 @@
 """Lưới màn chơi: phân loại ô sàn / trống / đích (A1)."""
-from typing import Optional, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from .block import MOVE_DIRECTIONS, STAND, Block
 
@@ -17,11 +17,6 @@ class Board:
     def __init__(self, grid: Sequence[Sequence[int]]) -> None:
         self.grid = [list(row) for row in grid]
         self.rows = len(self.grid)
-        self.goal: Optional[Tuple[int, int]] = None
-        for r, row in enumerate(self.grid):
-            for c, tile in enumerate(row):
-                if tile == TILE_GOAL:
-                    self.goal = (r, c)
 
     @classmethod
     def from_strings(cls, lines: Sequence[str]) -> "Board":
@@ -50,9 +45,9 @@ class Board:
         """Thắng khi khối đứng trên ô đích (nằm vắt qua đích thì chưa thắng)."""
         return block.orient == STAND and self.is_goal(block.r, block.c)
 
-    def valid_moves(self, block: Block) -> list:
+    def valid_moves(self, block: Block) -> List[Tuple[str, Block]]:
         """Danh sách (hướng, khối mới) của các nước đi hợp lệ, theo thứ tự U, D, L, R."""
-        moves = []
+        moves: List[Tuple[str, Block]] = []
         for direction in MOVE_DIRECTIONS:
             rolled = block.roll(direction)
             if self.is_valid(rolled):
