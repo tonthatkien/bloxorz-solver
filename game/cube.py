@@ -1,21 +1,17 @@
-"""Cơ chế di chuyển, hoán đổi và tự động ghép cho 2 cube đơn (Task C1).
+"""Di chuyển, đổi cube điều khiển và tự ghép hai cube đơn (C1).
 
-QUY ƯỚC DỰ ÁN (đã chốt trong state.py và AGENTS.md):
-- Khi split is not None: split = ((r1, c1), (r2, c2)).
-  - split[0] LUÔN LÀ cube đang được điều khiển (active).
-  - split[1] là cube đứng yên (inactive).
-  - r=0, c=0, orient=STAND được chuẩn hóa để State có hash duy nhất.
-- Hành động 'S': hoán đổi quyền điều khiển giữa 2 cube.
-- Hành động 'U', 'D', 'L', 'R': active cube lăn 1 ô (1x1x1 không có orientation).
-- Tự động ghép (Merge): Nếu sau khi di chuyển, 2 cube kề cạnh nhau (Manhattan distance = 1),
-  chúng tự động ghép lại thành khối 1x1x2 (split=None).
+Quy ước:
+- Khi split khác None, split = ((r1, c1), (r2, c2)); phần tử đầu là cube đang điều khiển.
+- Khi split có giá trị, r=0, c=0, orient=STAND để trạng thái luôn được chuẩn hóa.
+- Hành động S đổi cube đang điều khiển; U, D, L, R di chuyển cube đó đúng một ô.
+- Khi hai cube kề cạnh sau khi di chuyển, chúng tự ghép thành khối 1x1x2.
 """
-from typing import Optional, Tuple
+from typing import Optional
 
+from .level_loader import Level
 from .state import Cell, HORIZ, STAND, State, VERT
 
-# Độ dời tọa độ (dr, dc) cho 4 hướng di chuyển của cube đơn 1x1x1
-CUBE_DIRECTIONS = {
+CUBE_DIRECTIONS: dict[str, Cell] = {
     "U": (-1, 0),
     "D": (1, 0),
     "L": (0, -1),
@@ -24,113 +20,71 @@ CUBE_DIRECTIONS = {
 
 
 def swap_active_cube(state: State) -> State:
-    """Hoán đổi cube đang điều khiển khi ở trạng thái split (hành động 'S')."""
+    """Đổi cube đang điều khiển khi khối ở trạng thái split."""
     if state.split is None:
-        raise ValueError("Chỉ có thể hoán đổi cube khi ở trạng thái phân tách (split is not None).")
+        raise ValueError("Chỉ có thể đổi cube điều khiển khi khối đang ở trạng thái split.")
     c1, c2 = state.split
     return State(r=0, c=0, orient=STAND, bridges=state.bridges, split=(c2, c1))
 
 
 def try_merge(c1: Cell, c2: Cell, bridges: int) -> Optional[State]:
-    """Kiểm tra và ghép 2 cube nếu kề cạnh (Manhattan distance == 1).
+    """Ghép hai cube kề cạnh thành khối nằm ngang hoặc thẳng đứng.
 
-    Trả về State khối liền 1x1x2 (split=None) nếu kề nhau, ngược lại trả về None.
+    Trả về trạng thái khối liền nếu hai vị trí cách nhau một ô theo hàng hoặc cột;
+    nếu không kề nhau thì trả về None.
     """
     r1, col1 = c1
     r2, col2 = c2
 
-    # Cùng hàng, kề cột -> ghép thành HORIZ
+    # Cùng hàng, cột liền kề: ghép thành khối nằm ngang.
     if r1 == r2 and abs(col1 - col2) == 1:
         return State(r=r1, c=min(col1, col2), orient=HORIZ, bridges=bridges, split=None)
 
-    # Cùng cột, kề hàng -> ghép thành VERT
+    # Cùng cột, hàng liền kề: ghép thành khối thẳng đứng.
     if col1 == col2 and abs(r1 - r2) == 1:
         return State(r=min(r1, r2), c=col1, orient=VERT, bridges=bridges, split=None)
 
     return None
 
 
-def move_cube(state: State, action: str) -> State:
-    """Di chuyển cube đang kích hoạt (active cube) hoặc đổi cube điều khiển.
+def _is_walkable(level: Level, state: State, position: Cell) -> bool:
+    """Kiểm tra ô có sàn đỡ theo trạng thái đóng/mở cầu hiện tại hay không."""
+    row, column = position
+    if not (0 <= row < level.rows and 0 <= column < level.cols):
+        return False
+    if level.grid[row][column] not in ("#", "G"):
+        return False
+    for bridge in level.bridges.values():
+        if bridge.pos == position:
+            return bool(state.bridges & (1 << bridge.id))
+    return True
 
-    Args:
-        state: Trạng thái hiện tại (bắt buộc state.split is not None).
-        action: Một trong các hành động ('U', 'D', 'L', 'R', 'S').
 
-    Returns:
-        State mới sau khi di chuyển/hoán đổi/ghép nối.
+def move_cube(state: State, action: str, level: Level) -> Optional[State]:
+    """Di chuyển cube đang điều khiển một ô hoặc đổi cube điều khiển.
     """
     if state.split is None:
-        raise ValueError("move_cube chỉ xử lý trạng thái phân tách (state.split is not None).")
+        raise ValueError("move_cube chỉ xử lý trạng thái split.")
+    if try_merge(state.split[0], state.split[1], state.bridges) is not None:
+        raise ValueError("Hai cube đang kề nhau; hãy ghép chúng trước khi di chuyển.")
 
     if action == "S":
         return swap_active_cube(state)
 
     if action not in CUBE_DIRECTIONS:
-        raise ValueError(f"Hành động không hợp lệ cho cube: {action}")
+        raise ValueError(f"Hướng di chuyển không hợp lệ cho cube: {action}")
 
     dr, dc = CUBE_DIRECTIONS[action]
     active_r, active_c = state.split[0]
     new_active: Cell = (active_r + dr, active_c + dc)
     inactive: Cell = state.split[1]
+    if new_active == inactive or not _is_walkable(level, state, new_active):
+        return None
 
-    # Kiểm tra tự động ghép nối nếu 2 cube kề cạnh nhau
+    # Chỉ ghép sau khi xác nhận ô mới có sàn đỡ.
     merged = try_merge(new_active, inactive, state.bridges)
     if merged is not None:
         return merged
 
-    # Nếu chưa kề nhau, duy trì trạng thái split với vị trí mới của active cube
+    # Nếu chưa kề nhau, giữ nguyên cube đứng yên và cập nhật vị trí cube đang điều khiển.
     return State(r=0, c=0, orient=STAND, bridges=state.bridges, split=(new_active, inactive))
-
-
-
-
-
-
-#     """Cơ chế di chuyển, hoán đổi và tự động ghép cho 2 cube đơn (Task C1)."""
-# from typing import Optional, Tuple
-# from .state import Cell, HORIZ, STAND, State, VERT
-
-# CUBE_DIRECTIONS = {
-#     "U": (-1, 0),
-#     "D": (1, 0),
-#     "L": (0, -1),
-#     "R": (0, 1),
-# }
-
-# def swap_active_cube(state: State) -> State:
-#     """Hoán đổi cube đang điều khiển khi ở trạng thái split (hành động 'S')."""
-#     if state.split is None:
-#         raise ValueError("Chỉ có thể hoán đổi cube khi ở trạng thái phân tách (split is not None).")
-#     c1, c2 = state.split
-#     return State(r=0, c=0, orient=STAND, bridges=state.bridges, split=(c2, c1))
-
-# def try_merge(c1: Cell, c2: Cell, bridges: int) -> Optional[State]:
-#     """Kiểm tra và ghép 2 cube nếu kề cạnh (Manhattan distance == 1)."""
-#     r1, col1 = c1
-#     r2, col2 = c2
-#     if r1 == r2 and abs(col1 - col2) == 1:
-#         return State(r=r1, c=min(col1, col2), orient=HORIZ, bridges=bridges, split=None)
-#     if col1 == col2 and abs(r1 - r2) == 1:
-#         return State(r=min(r1, r2), c=col1, orient=VERT, bridges=bridges, split=None)
-#     return None
-
-# def move_cube(state: State, action: str) -> State:
-#     """Di chuyển cube đang kích hoạt (active cube) hoặc đổi cube điều khiển."""
-#     if state.split is None:
-#         raise ValueError("move_cube chỉ xử lý trạng thái phân tách (state.split is not None).")
-#     if action == "S":
-#         return swap_active_cube(state)
-#     if action not in CUBE_DIRECTIONS:
-#         raise ValueError(f"Hành động không hợp lệ cho cube: {action}")
-
-#     dr, dc = CUBE_DIRECTIONS[action]
-#     active_r, active_c = state.split[0]
-#     new_active: Cell = (active_r + dr, active_c + dc)
-#     inactive: Cell = state.split[1]
-
-#     merged = try_merge(new_active, inactive, state.bridges)
-#     if merged is not None:
-#         return merged
-
-#     return State(r=0, c=0, orient=STAND, bridges=state.bridges, split=(new_active, inactive))
