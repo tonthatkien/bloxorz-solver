@@ -77,7 +77,7 @@ Ký hiệu:
 | h*(s) | Chi phí tối ưu thật từ s tới goal. |
 | (r_c, c_c) | Tâm hình học của khối; phụ thuộc vào STAND, HORIZ, VERT. |
 | (r_g, c_g) | Tọa độ goal. |
-| D(s)  |r_c - r_g| + |c_c - c_g| | Khoảng cách Manhattan từ tâm khối tới goal. |
+| D(s) = $$\text{abs}(r_c - r_g) + \text{abs}(c_c - c_g)$$ | Khoảng cách Manhattan từ tâm khối tới goal. |
 | c_roll_min | Cận dưới chi phí một lần lăn; bằng COST_MIN = 1.0. |
 
 Với STAND, tâm là (r, c); với HORIZ, tâm là (r, c + 0.5); với VERT, tâm là (r + 0.5, c).
