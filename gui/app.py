@@ -3,9 +3,11 @@ from typing import Optional, Tuple
 import math
 import pygame
 
+from game.block import Block
+from game.board import Board
 from game.game import Game
 from game.level_loader import Level, load_level
-from game.state import State, STAND, HORIZ, VERT, cells
+from game.state import State, STAND
 from gui.draw import (
     calculate_iso_layout,
     draw_scene,
@@ -18,55 +20,12 @@ WINDOW_SIZE = (1280, 720)
 FPS         = 60
 BG_COLOR    = (82, 115, 135)
 
-# Bảng chuyển đổi hướng
-_TRANS = {
-    (STAND, 'U'): (VERT,   -2,  0),
-    (STAND, 'D'): (VERT,    1,  0),
-    (STAND, 'L'): (HORIZ,   0, -2),
-    (STAND, 'R'): (HORIZ,   0,  1),
-    (HORIZ, 'U'): (HORIZ,  -1,  0),
-    (HORIZ, 'D'): (HORIZ,   1,  0),
-    (HORIZ, 'L'): (STAND,   0, -1),
-    (HORIZ, 'R'): (STAND,   0,  2),
-    (VERT,  'U'): (STAND,  -1,  0),
-    (VERT,  'D'): (STAND,   2,  0),
-    (VERT,  'L'): (VERT,    0, -1),
-    (VERT,  'R'): (VERT,    0,  1),
-}
-
 _KEY_MAP = {
     pygame.K_UP:    'U',
     pygame.K_DOWN:  'D',
     pygame.K_LEFT:  'L',
     pygame.K_RIGHT: 'R',
 }
-
-
-def _step(state: State, action: str) -> Optional[State]:
-    """Tính trạng thái kế tiếp khi lăn (chưa xét sàn)"""
-    if state.split is not None:
-        return None
-    key = (state.orient, action)
-    if key not in _TRANS:
-        return None
-    new_orient, dr, dc = _TRANS[key]
-    return State(state.r + dr, state.c + dc, new_orient, state.bridges, None)
-
-
-def _is_walkable(state: State, level: Level) -> bool:
-    """Kiểm tra khối có nằm trọn vẹn trên các ô sàn hợp lệ hay không"""
-    for r, c in cells(state):
-        if not (0 <= r < level.rows and 0 <= c < level.cols):
-            return False
-        if level.grid[r][c] == '.':
-            return False
-    return True
-
-
-def _is_goal(state: State, level: Level) -> bool:
-    return (state.orient == STAND
-            and state.split is None
-            and level.grid[state.r][state.c] == 'G')
 
 
 def run(level_path: str) -> None:
@@ -120,7 +79,18 @@ def run(level_path: str) -> None:
 
     level  = load_level(level_path)
     game   = Game(level)
+    board  = Board.from_strings(level.grid)
     tw, th, offset, skew = calculate_iso_layout(level.rows, level.cols, *WINDOW_SIZE)
+
+    def _step(state: State, action: str) -> Tuple[Optional[State], bool]:
+        """Trả về (state mới, có rơi không). TODO [D2]: đổi sang game.get_successors khi A2 xong."""
+        if state.split is not None:
+            return None, False
+        b = Block(state.r, state.c, state.orient).roll(action)
+        return State(b.r, b.c, b.orient, state.bridges, None), not board.is_valid(b)
+
+    def _is_goal(state: State) -> bool:
+        return state.split is None and board.is_win(Block(state.r, state.c, state.orient))
 
     def reset() -> State:
         return game.initial_state()
@@ -194,7 +164,7 @@ def run(level_path: str) -> None:
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
                     if not animating:
-                        ns = _step(state, action)
+                        ns, anim_is_void = _step(state, action)
                         if ns is not None:
                             animating = True
                             anim_start_r = state.r
@@ -202,7 +172,6 @@ def run(level_path: str) -> None:
                             anim_start_orient = state.orient
                             anim_action = action
                             anim_next_state = ns
-                            anim_is_void = not _is_walkable(ns, level)
                             anim_start_time = pygame.time.get_ticks()
                             buffered_action = None
                     else:
@@ -247,7 +216,7 @@ def run(level_path: str) -> None:
                     buffered_action = None
                 else:
                     state = anim_next_state
-                    if _is_goal(state, level):
+                    if _is_goal(state):
                         # Đứng đúng ô Goal -> rơi chìm vào lòng hố
                         falling_goal = True
                         fall_start_time = pygame.time.get_ticks()
@@ -259,7 +228,7 @@ def run(level_path: str) -> None:
                         # Kích hoạt ngay lệnh đệm
                         b_act = buffered_action
                         buffered_action = None
-                        ns = _step(state, b_act)
+                        ns, anim_is_void = _step(state, b_act)
                         if ns is not None:
                             animating = True
                             anim_start_r = state.r
@@ -267,7 +236,6 @@ def run(level_path: str) -> None:
                             anim_start_orient = state.orient
                             anim_action = b_act
                             anim_next_state = ns
-                            anim_is_void = not _is_walkable(ns, level)
                             anim_start_time = pygame.time.get_ticks()
             else:
                 anim_progress = _ease(raw_t)
