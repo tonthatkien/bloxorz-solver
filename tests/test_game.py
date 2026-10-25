@@ -1,4 +1,4 @@
-"""Unit test giao diện Game: initial_state, is_goal, get_successors (A1)."""
+"""Unit test giao diện Game: initial_state, is_goal, get_successors (A2)."""
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,12 +14,14 @@ GRID = [
     "##G##",
     "..###",
 ]
+# Lưới 5x5 toàn sàn: từ (2,2) đứng thì cả 4 hướng đều hợp lệ.
+OPEN_GRID = ["#####"] * 5
 LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.json"
 
 
-def make_game(cost_fn=None):
+def make_game(cost_fn=None, grid=GRID):
     # Level giả tối thiểu, để test không phụ thuộc file JSON hay level_loader
-    level = SimpleNamespace(start=(0, 0), grid=GRID, initial_bridge_mask=lambda: 0)
+    level = SimpleNamespace(start=(0, 0), grid=grid, initial_bridge_mask=lambda: 0)
     return Game(level, cost_fn)
 
 
@@ -45,12 +47,27 @@ class TestInitialAndGoal(unittest.TestCase):
 
 
 class TestSuccessors(unittest.TestCase):
-    def test_invalid_moves_are_excluded(self):
+    def test_moves_off_the_grid_are_excluded(self):
         actions = [a for a, _, _ in make_game().get_successors(State(0, 0, STAND, 0, None))]
         self.assertEqual(actions, [DOWN, RIGHT])
 
-    def test_successor_order_is_u_d_l_r(self):
-        # Từ ô đích: U, L, R hợp lệ; D ra ngoài lưới nên bị loại.
+    def test_whole_block_over_void_is_excluded(self):
+        # HORIZ ở (0,1): R lăn thành STAND ở (0,3) là ô '.', U ra ngoài lưới.
+        actions = [a for a, _, _ in make_game().get_successors(State(0, 1, HORIZ, 0, None))]
+        self.assertEqual(actions, [DOWN, LEFT])
+
+    def test_half_block_over_void_is_excluded(self):
+        # STAND ở (1,1): D để nửa khối ở (3,1) là '.', R để nửa khối ở (1,3) là '.',
+        # U và L ra ngoài lưới -> không còn nước đi nào.
+        self.assertEqual(make_game().get_successors(State(1, 1, STAND, 0, None)), [])
+
+    def test_successor_order_with_all_four_directions(self):
+        actions = [a for a, _, _ in
+                   make_game(grid=OPEN_GRID).get_successors(State(2, 2, STAND, 0, None))]
+        self.assertEqual(actions, [UP, DOWN, LEFT, RIGHT])
+
+    def test_successor_order_skips_invalid_direction(self):
+        # Từ ô đích: D ra ngoài lưới nên chỉ còn U, L, R (vẫn đúng thứ tự).
         actions = [a for a, _, _ in make_game().get_successors(State(2, 2, STAND, 0, None))]
         self.assertEqual(actions, [UP, LEFT, RIGHT])
 
@@ -59,8 +76,9 @@ class TestSuccessors(unittest.TestCase):
         self.assertEqual(result[0], (DOWN, State(1, 0, VERT, 0, None), 1.0))
         self.assertEqual(result[1], (RIGHT, State(0, 1, HORIZ, 0, None), 1.0))
 
-    def test_successors_preserve_bridges_and_split(self):
+    def test_successors_preserve_bridges_mask(self):
         # TODO [B]: khi công tắc đổi mask thì test này phải cập nhật theo.
+        # TODO [C]: khi có tách/ghép, thêm test giữ split khác None.
         successors = make_game().get_successors(State(0, 0, STAND, 5, None))
         self.assertTrue(successors)
         for _, new, _ in successors:
@@ -93,7 +111,9 @@ class TestWithRealLevel(unittest.TestCase):
         start = game.initial_state()
         self.assertEqual((start.r, start.c), level.start)
         self.assertEqual(start.bridges, level.initial_bridge_mask())
-        for _, new, cost in game.get_successors(start):
+        successors = game.get_successors(start)
+        self.assertTrue(successors)
+        for _, new, cost in successors:
             self.assertEqual(cost, 1.0)
             self.assertEqual(new.bridges, start.bridges)
 
