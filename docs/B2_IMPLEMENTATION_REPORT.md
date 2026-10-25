@@ -1,5 +1,9 @@
 # B2 Implementation Report
 
+> Cập nhật review — 25/10/2026: tests/test_tiles_a1.py import Block trực tiếp từ A1.
+> Đã bỏ fallback ModuleNotFoundError/Block=None và decorator skipIf vì A1 đã merge.
+> Giữ nguyên nội dung bảy test; chạy thực tế 7/7 PASS, toàn suite 118 PASS, 0 skip.
+
 > Cập nhật hiện tại — 24/10/2026, theo D1–D4 của PR #9 và yêu cầu của Gia Hân.
 > Đã merge dependency B1 mới vào B2 theo chiều B1 → B2, không rewrite/force-push/conflict.
 > Các phần mô tả overlap và số liệu trước ngày này bên dưới là lịch sử.
@@ -43,7 +47,7 @@ Nguồn: README/CONTRIBUTING/CODING_STANDARDS/REVIEW_GUIDE/GIT_GUIDE, PR templat
 |---|---|---|
 | game/tiles.py | Snapshot static terrain, support, event/effect, resolve_landing | B2 |
 | tests/test_tiles.py | 45 test methods về bridge/switch/landing | B2 |
-| tests/test_tiles_a1.py | 7 test methods dùng A1 Block.roll; skip rõ nếu thiếu A1 | Integration trực tiếp B2 |
+| tests/test_tiles_a1.py | 7 test methods dùng A1 Block.roll; import trực tiếp | Integration trực tiếp B2 |
 | docs/B2_IMPLEMENTATION_REPORT.md | Thiết kế, bằng chứng và handoff | B2 |
 | docs/B2_PULL_REQUEST.md | PR body sẵn dùng khi B1 merge | B2 |
 | docs/AI_USAGE_LOG.md | Bổ sung mục B2, không sửa mục B1 | Quy định nhóm |

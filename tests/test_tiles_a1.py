@@ -1,17 +1,11 @@
-"""Real-roll integration tests; explicitly skipped until the A1 dependency is present."""
+"""Real-roll integration tests: B2 tile rules driven by A1's actual Block.roll."""
 import unittest
 from typing import Optional
 
+from game.block import Block
 from game.level_loader import parse_level
 from game.state import HORIZ, State
 from game.tiles import TileRules
-
-try:
-    from game.block import Block
-except ModuleNotFoundError as error:
-    if error.name != "game.block":
-        raise
-    Block = None
 
 
 def resolve_roll(rules: TileRules, old: State, action: str) -> Optional[State]:
@@ -20,7 +14,6 @@ def resolve_roll(rules: TileRules, old: State, action: str) -> Optional[State]:
     return rules.resolve_landing(old, State(block.r, block.c, block.orient))
 
 
-@unittest.skipIf(Block is None, "A1 PR #3 pending: game.block is not present")
 class TestA1TileIntegration(unittest.TestCase):
     """Use the actual A1 roll table instead of duplicating movement rules in B2."""
 
