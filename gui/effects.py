@@ -4,8 +4,8 @@ from typing import Tuple
 import pygame
 
 from game.state import STAND, HORIZ, VERT
-from gui.board import _poly_aa
-from gui.block import _face_color
+from gui.render_board import _poly_aa
+from gui.render_block import _face_color
 
 
 def draw_goal_dissolve_block(surface: pygame.Surface,
@@ -65,114 +65,6 @@ def draw_goal_dissolve_block(surface: pygame.Surface,
     target_surf.set_alpha(max(0, min(255, alpha)))
     surface.blit(target_surf, (0, 0))
 
-
-def draw_void_fall_block(surface: pygame.Surface,
-                         r: int, c: int, orient: int,
-                         action: str,
-                         angle: float,
-                         dz: float,
-                         dr: float, dc: float,
-                         tw: int, th: int,
-                         off: Tuple[int, int], skew: int,
-                         scale: float = 1.0,
-                         alpha: int = 255) -> None:
-    """Vẽ khối khi rơi tự do"""
-    if alpha <= 0:
-        return
-
-    cube_h = 60
-
-    lx = 1 if orient != HORIZ else 2
-    ly = 1 if orient != VERT else 2
-    lz = 2 if orient == STAND else 1
-
-    if action == 'U':
-        pivot, axis = (c, r), 'X'
-    elif action == 'D':
-        pivot, axis = (c, r + ly), 'X'
-    elif action == 'L':
-        pivot, axis = (c, r), 'Y'
-    else:  # 'R'
-        pivot, axis = (c + lx, r), 'Y'
-
-    x0, y0, z0 = float(c), float(r), 0.0
-    x1, y1, z1 = x0 + lx, y0 + ly, float(lz)
-    verts = [
-        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
-        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
-    ]
-
-    faces = [
-        ('TOP',    [4, 5, 6, 7], ( 0.0,  0.0,  1.0)),
-        ('BOTTOM', [3, 2, 1, 0], ( 0.0,  0.0, -1.0)),
-        ('FRONT',  [3, 2, 6, 7], ( 0.0,  1.0,  0.0)),
-        ('BACK',   [1, 0, 4, 5], ( 0.0, -1.0,  0.0)),
-        ('LEFT',   [0, 3, 7, 4], (-1.0,  0.0,  0.0)),
-        ('RIGHT',  [2, 1, 5, 6], ( 1.0,  0.0,  0.0)),
-    ]
-
-    px, py = pivot
-    ca, sa = math.cos(angle), math.sin(angle)
-
-    def rot_p(p):
-        vx, vy, vz = p
-        if axis == 'X':
-            dy, dz_v = vy - py, vz
-            return (vx + dc, py + dy * ca + dz_v * sa + dr, -dy * sa + dz_v * ca + dz)
-        else:
-            dx_v, dz_v = vx - px, vz
-            return (px + dx_v * ca + dz_v * sa + dc, vy + dr, -dx_v * sa + dz_v * ca + dz)
-
-    def rot_v(v):
-        vx, vy, vz = v
-        if axis == 'X':
-            return (vx, vy * ca + vz * sa, -vy * sa + vz * ca)
-        else:
-            return (vx * ca + vz * sa, vy, -vx * sa + vz * ca)
-
-    rot_verts = [rot_p(v) for v in verts]
-
-    if scale != 1.0:
-        cx = sum(v[0] for v in rot_verts) / 8.0
-        cy = sum(v[1] for v in rot_verts) / 8.0
-        cz = sum(v[2] for v in rot_verts) / 8.0
-        rot_verts = [(cx + (v[0] - cx) * scale,
-                      cy + (v[1] - cy) * scale,
-                      cz + (v[2] - cz) * scale) for v in rot_verts]
-
-    def proj(p):
-        return (off[0] + p[0] * tw + p[1] * skew,
-                off[1] + p[1] * th - p[2] * cube_h)
-
-    proj_verts = [proj(v) for v in rot_verts]
-    v_cam = (-skew / tw, 1.0, th / cube_h)
-
-    target_surf = surface
-    if alpha < 255:
-        target_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-
-    visible_faces = []
-    for fname, v_indices, n0 in faces:
-        n = rot_v(n0)
-        v_dot = n[0] * v_cam[0] + n[1] * v_cam[1] + n[2] * v_cam[2]
-        if v_dot > 1e-4:
-            center_x = sum(rot_verts[idx][0] for idx in v_indices) / 4.0
-            center_y = sum(rot_verts[idx][1] for idx in v_indices) / 4.0
-            center_z = sum(rot_verts[idx][2] for idx in v_indices) / 4.0
-            depth = center_y * th - center_z * cube_h + center_x * 0.5
-
-            col = _face_color(n)
-            pts = [proj_verts[idx] for idx in v_indices]
-            visible_faces.append((depth, fname, pts, col))
-
-    visible_faces.sort(key=lambda item: item[0])
-    for _, fname, pts, col in visible_faces:
-        int_pts = [(int(round(p[0])), int(round(p[1]))) for p in pts]
-        _poly_aa(target_surf, col, int_pts)
-
-    if alpha < 255:
-        target_surf.set_alpha(max(0, min(255, alpha)))
-        surface.blit(target_surf, (0, 0))
 
 
 # Tham khảo công thức quay Rodrigues: https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula

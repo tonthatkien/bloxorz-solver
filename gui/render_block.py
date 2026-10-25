@@ -3,7 +3,7 @@ from typing import Tuple
 import pygame
 
 from game.state import State, STAND, HORIZ, VERT
-from gui.board import _poly_aa
+from gui.render_board import _poly_aa
 
 
 def _face_color(normal: Tuple[float, float, float]) -> Tuple[int, int, int]:
