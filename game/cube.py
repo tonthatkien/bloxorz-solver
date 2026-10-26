@@ -27,14 +27,14 @@ def swap_active_cube(state: State) -> State:
     return State(r=0, c=0, orient=STAND, bridges=state.bridges, split=(c2, c1))
 
 
-def try_merge(c1: Cell, c2: Cell, bridges: int) -> Optional[State]:
+def try_merge(cube_a: Cell, cube_b: Cell, bridges: int) -> Optional[State]:
     """Ghép hai cube kề cạnh thành khối nằm ngang hoặc thẳng đứng.
 
     Trả về trạng thái khối liền nếu hai vị trí cách nhau một ô theo hàng hoặc cột;
     nếu không kề nhau thì trả về None.
     """
-    r1, col1 = c1
-    r2, col2 = c2
+    r1, col1 = cube_a
+    r2, col2 = cube_b
 
     # Cùng hàng, cột liền kề: ghép thành khối nằm ngang.
     if r1 == r2 and abs(col1 - col2) == 1:
@@ -62,6 +62,12 @@ def _is_walkable(level: Level, state: State, position: Cell) -> bool:
 
 def move_cube(state: State, action: str, level: Level) -> Optional[State]:
     """Di chuyển cube đang điều khiển một ô hoặc đổi cube điều khiển.
+
+    Tiền điều kiện: ``state.split`` khác ``None`` và hai cube không kề nhau.
+    Caller (C2) phải chuẩn hóa trạng thái bằng ``try_merge`` trước khi gọi hàm này.
+
+    Raises:
+        ValueError: Nếu state chưa tách hoặc hai cube trong state đang kề nhau.
     """
     if state.split is None:
         raise ValueError("move_cube chỉ xử lý trạng thái split.")

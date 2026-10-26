@@ -47,6 +47,16 @@ class TestSplitState(unittest.TestCase):
         self.assertEqual(swapped.bridges, 5)
         self.assertEqual((swapped.r, swapped.c, swapped.orient), (0, 0, STAND))
 
+    def test_swapping_twice_restores_the_original_state(self) -> None:
+        state = State(bridges=5, split=((1, 2), (4, 5)))
+        level = make_level(("#####",) * 5)
+
+        swapped = move_cube(state, "S", level)
+        swapped_back = move_cube(swapped, "S", level)
+
+        self.assertEqual(swapped_back, state)
+
+
 class TestSingleCubeMovement(unittest.TestCase):
     """Kiểm tra bước đi một ô, mặt sàn hợp lệ và cơ chế tự ghép."""
 
@@ -117,6 +127,27 @@ class TestSingleCubeMovement(unittest.TestCase):
         self.assertEqual(horizontal, State(1, 2, HORIZ))
         self.assertEqual(vertical, State(2, 1, VERT))
 
+    def test_merge_left_uses_top_left_coordinate_and_preserves_bridges(self) -> None:
+        state = State(bridges=5, split=((1, 3), (1, 1)))
+
+        merged = move_cube(state, "L", self.level)
+
+        self.assertEqual(merged, State(1, 1, HORIZ, bridges=5))
+
+    def test_merge_up_uses_top_left_coordinate_and_preserves_bridges(self) -> None:
+        state = State(bridges=5, split=((3, 1), (1, 1)))
+
+        merged = move_cube(state, "U", self.level)
+
+        self.assertEqual(merged, State(1, 1, VERT, bridges=5))
+
+    def test_non_merging_move_preserves_bridge_mask(self) -> None:
+        state = State(bridges=5, split=((2, 2), (0, 0)))
+
+        moved = move_cube(state, "R", self.level)
+
+        self.assertEqual(moved, State(bridges=5, split=((2, 3), (0, 0))))
+
     def test_rejects_invalid_actions_and_unsplit_states(self) -> None:
         state = State(split=((2, 2), (0, 0)))
 
@@ -126,6 +157,8 @@ class TestSingleCubeMovement(unittest.TestCase):
             move_cube(State(), "U", self.level)
 
     def test_move_rejects_an_unmerged_adjacent_split_state(self) -> None:
+        # Dựng trực tiếp state vi phạm tiền điều kiện; luồng C2 phải chuẩn hóa
+        # state này bằng try_merge trước khi gọi move_cube.
         state = State(split=((1, 1), (1, 2)))
 
         with self.assertRaisesRegex(ValueError, "kề nhau"):
