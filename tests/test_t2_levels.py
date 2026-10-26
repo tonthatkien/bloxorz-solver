@@ -35,8 +35,8 @@ def _core_handles_switches() -> bool:
 class TestT2Catalog(unittest.TestCase):
     """Validate data independently of whether B2 is present in the checkout."""
 
-    def test_six_levels_have_expected_groups_and_metadata(self) -> None:
-        self.assertEqual(len(CATALOG), 6)
+    def test_seven_levels_have_expected_groups_and_metadata(self) -> None:
+        self.assertEqual(len(CATALOG), 7)
         for name, record in CATALOG.items():
             with self.subTest(level=name):
                 level = _level(name)
@@ -110,7 +110,7 @@ class TestT2FragileSolvability(_SolutionChecks, unittest.TestCase):
         self.assertEqual(core_moves["R"], State(1, 3))
         self.assertNotIn("R", {a for a, _, _ in game.get_successors(state)})
 
-    def test_three_fragile_levels_have_optimal_replayable_solutions(self) -> None:
+    def test_fragile_levels_have_optimal_replayable_solutions(self) -> None:
         for name, record in CATALOG.items():
             if record["group"] != 2:
                 continue
@@ -120,8 +120,13 @@ class TestT2FragileSolvability(_SolutionChecks, unittest.TestCase):
                 self.assertTrue(any(set(cells(s)) & level.fragile for s in states))
                 relaxed = solve(VerificationGame(replace(level, fragile=set())))
                 self.assertEqual(len(relaxed.path), record["length_without_fragile"])
-                if name != "g2_fragile_01":
+                if name in ("g2_fragile_02", "g2_fragile_03"):
                     self.assertLess(len(relaxed.path), record["length"])
+                if name == "g2_fragile_04":
+                    self.assertEqual(relaxed.expanded, record["expanded_without_fragile"])
+                    self.assertLess(solve(VerificationGame(level)).expanded,
+                                    relaxed.expanded)
+                if name != "g2_fragile_01":
                     rejected = 0
                     game = VerificationGame(level)
                     for state in states:

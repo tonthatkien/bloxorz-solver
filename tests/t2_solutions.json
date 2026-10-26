@@ -44,6 +44,22 @@
     "mask_changes": 0,
     "length_without_fragile": 18
   },
+  "g2_fragile_04": {
+    "group": 2,
+    "difficulty": "classic",
+    "path": "RDDRRRRRRRRRRRDDDDDDDDDDRDR",
+    "length": 27,
+    "expanded": 759,
+    "discovered": 766,
+    "floor_cells": 294,
+    "fragile": 3,
+    "bridges": 0,
+    "switches": 0,
+    "orientation_changes": 24,
+    "mask_changes": 0,
+    "length_without_fragile": 27,
+    "expanded_without_fragile": 769
+  },
   "g3_switch_01": {
     "group": 3,
     "difficulty": "easy",

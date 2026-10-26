@@ -63,12 +63,12 @@ class TestT2Scenarios(unittest.TestCase):
         self.assertNotIn(game.level.name, catalog)
 
     def test_classic_map_uses_multiple_areas_and_a_longer_solution(self) -> None:
-        level = load_level("levels/g2_fragile_03.json")
+        level = load_level("levels/g2_fragile_04.json")
         game = VerificationGame(level)
         result = solve(game)
-        self.assertGreater(sum(ch in "#G" for row in level.grid for ch in row), 50)
-        self.assertGreaterEqual(len(result.path), 20)
-        self.assertGreater(result.expanded, 100)
+        self.assertGreater(sum(ch in "#G" for row in level.grid for ch in row), 250)
+        self.assertGreaterEqual(len(result.path), 25)
+        self.assertGreater(result.expanded, 500)
         replay(game, result.path)
 
 
