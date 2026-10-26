@@ -79,7 +79,13 @@ class _SolutionChecks:
         self.assertEqual(result, solve(game))
         record = CATALOG[name]
         self.assertEqual(len(result.path), record["length"])
+        self.assertEqual(result.expanded, record["expanded"])
+        self.assertEqual(result.discovered, record["discovered"])
         states = replay(game, tuple(record["path"]))
+        self.assertEqual(sum(a.orient != b.orient for a, b in zip(states, states[1:])),
+                         record["orientation_changes"])
+        self.assertEqual(sum(a.bridges != b.bridges for a, b in zip(states, states[1:])),
+                         record["mask_changes"])
         replay(game, result.path)
         for state in states:
             self.assertIsNone(state.split)
