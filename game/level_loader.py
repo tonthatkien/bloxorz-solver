@@ -159,6 +159,13 @@ def _switch(item: object, label: str) -> Switch:
             _list(_required(item, "cubes", label), f"{label}.cubes"))]
         if len(cubes) != 2 or cubes[0] == cubes[1]:
             raise LevelValidationError(f"{label}.cubes: expected two distinct positions")
+        r1, c1 = cubes[0]
+        r2, c2 = cubes[1]
+        distance = abs(r1 - r2) + abs(c1 - c2)
+        if distance == 1:
+            raise LevelValidationError(
+                f"{label}.cubes: positions {cubes[0]} and {cubes[1]} "
+                "cannot be orthogonally adjacent")
         return Switch(kind, pos, cubes=cubes)
     if "cubes" in item:
         raise LevelValidationError(f"{label}.cubes: only valid for split switches")
