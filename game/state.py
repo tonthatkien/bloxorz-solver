@@ -21,11 +21,30 @@ Cell = Tuple[int, int]
 
 @dataclass(frozen=True)
 class State:
+    """Bản ghi bất biến, có thể băm, của khối thường hoặc khối đã tách."""
+
     r: int = 0
     c: int = 0
     orient: int = STAND
     bridges: int = 0
     split: Optional[Tuple[Cell, Cell]] = None
+
+    def __post_init__(self) -> None:
+        """Kiểm tra tọa độ split và chuẩn hóa các trường không dùng khi khối đã tách."""
+        if self.split is None:
+            return
+        if not isinstance(self.split, tuple) or len(self.split) != 2:
+            raise TypeError("split phải là tuple gồm đúng hai bộ tọa độ")
+        for position in self.split:
+            if not isinstance(position, tuple) or len(position) != 2:
+                raise TypeError("mỗi vị trí trong split phải là một bộ tọa độ")
+            if any(type(coordinate) is not int for coordinate in position):
+                raise TypeError("tọa độ trong split phải là số nguyên")
+        if self.split[0] == self.split[1]:
+            raise ValueError("hai cube tách rời phải nằm ở hai ô khác nhau")
+        object.__setattr__(self, "r", 0)
+        object.__setattr__(self, "c", 0)
+        object.__setattr__(self, "orient", STAND)
 
 
 def cells(s: State) -> List[Cell]:
