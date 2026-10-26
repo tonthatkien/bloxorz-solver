@@ -78,11 +78,12 @@ def run(level_path: str) -> None:
     lost: bool   = False
     move_count: int = 0
 
-    # Cấu hình thời gian Animation
+    # Cấu hình thời gian và thông số Animation
     ANIM_DURATION_MS = 140
     FALL_GOAL_DURATION_MS = 600
     FALL_VOID_DURATION_MS = 600
     SPAWN_DURATION_MS = 460
+    SPAWN_HEIGHT = 8.5
 
     def _ease(t: float) -> float:
         return t * t * (3.0 - 2.0 * t)
@@ -108,7 +109,7 @@ def run(level_path: str) -> None:
     spawn_r = state.r
     spawn_c = state.c
     spawn_orient = state.orient
-    z_spawn = 8.5
+    z_spawn = SPAWN_HEIGHT
 
     def _step(cur_state: State, action: str) -> Tuple[Optional[State], bool]:
         """Thực hiện một nước đi bằng cách truy vấn Game Core (game.get_successors).
@@ -155,7 +156,7 @@ def run(level_path: str) -> None:
         spawn_r = state.r
         spawn_c = state.c
         spawn_orient = state.orient
-        z_spawn = 8.5
+        z_spawn = SPAWN_HEIGHT
 
     # Nút bấm HUD góc trên-phải
     btn_restart  = Button((WINDOW_SIZE[0] - 24 - 120 - 12 - 110, 20, 110, 38),
@@ -275,7 +276,7 @@ def run(level_path: str) -> None:
                 t = elapsed / float(SPAWN_DURATION_MS)
                 if t <= 0.78:
                     tf = t / 0.78
-                    z_spawn = 8.5 * (1.0 - tf * tf)
+                    z_spawn = SPAWN_HEIGHT * (1.0 - tf * tf)
                 else:
                     tb = (t - 0.78) / 0.22
                     z_spawn = 0.22 * math.sin(tb * math.pi) * (1.0 - tb * 0.5)
@@ -366,7 +367,14 @@ def run(level_path: str) -> None:
         # 2. Vẽ thanh trạng thái (HUD) góc trên-trái
         lvl_lbl = font_hud_lbl.render("LEVEL", True, (138, 90, 50))
         lvl_val = font_hud_val.render(f"{level.name}", True, (185, 28, 28))
-        w_lvl = _draw_hud_pill(screen, 24, 20, lvl_lbl, lvl_val)
+
+        is_lvl_hover = (level_pill_rect.collidepoint(mouse_pos)
+                        and not level_modal.is_open)
+        lvl_bg = (245, 230, 205, 255) if is_lvl_hover else (254, 250, 235, 235)
+        lvl_border = (150, 95, 45, 230) if is_lvl_hover else (180, 130, 85, 180)
+
+        w_lvl = _draw_hud_pill(screen, 24, 20, lvl_lbl, lvl_val,
+                               bg_col=lvl_bg, border_col=lvl_border)
         level_pill_rect = pygame.Rect(24, 20, w_lvl, 38)
 
         mov_lbl = font_hud_lbl.render("MOVES", True, (138, 90, 50))
