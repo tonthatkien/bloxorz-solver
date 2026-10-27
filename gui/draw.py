@@ -24,6 +24,12 @@ from gui.effects import (
     draw_shatter_block,
     generate_shatter_pieces,
 )
+from gui.draw_cube import (
+    draw_active_indicator,
+    draw_animated_single_cube,
+    draw_single_cube,
+    draw_split_cubes,
+)
 
 
 def draw_scene(surface: pygame.Surface,
@@ -32,10 +38,10 @@ def draw_scene(surface: pygame.Surface,
                tw: int, th: int,
                off: Tuple[int, int],
                skew: int,
-               anim_state: Optional[Tuple[int, int, int, str, float]] = None,
+               anim_state: Optional[tuple] = None,
                fall_state: Optional[tuple] = None,
                spawn_state: Optional[Tuple[int, int, int, float]] = None) -> None:
-    """Vẽ toàn bộ khung cảnh: Sàn đảo bay và Khối gỗ (tĩnh, lăn animation, rơi xuất phát, vỡ vụn hoặc mờ dần)."""
+    """Vẽ toàn bộ khung cảnh: Sàn đảo bay và Khối gỗ / Hai cube tách rời."""
     is_shatter = (fall_state is not None and fall_state[0] == 'shatter')
     is_goal = (fall_state is not None and fall_state[0] == 'goal')
 
@@ -67,7 +73,18 @@ def draw_scene(surface: pygame.Surface,
         sr, sc, sorient, sz = spawn_state
         draw_spawn_block(surface, sr, sc, sorient, sz, tw, th, off, skew)
     elif anim_state is not None:
-        ar, ac, aorient, aaction, aprogress = anim_state
-        draw_animated_block(surface, ar, ac, aorient, aaction, aprogress, tw, th, off, skew)
+        # Nếu là anim lăn khối bình thường (5 phần tử: r, c, orient, action, progress)
+        if len(anim_state) == 5:
+            ar, ac, aorient, aaction, aprogress = anim_state
+            draw_animated_block(surface, ar, ac, aorient, aaction, aprogress, tw, th, off, skew)
+        # Nếu là anim split cube (6 phần tử: 'split', active_r, active_c, action, progress, split_tuple)
+        elif len(anim_state) == 6 and anim_state[0] == 'split':
+            _, ar, ac, aaction, aprogress, sp = anim_state
+            draw_split_cubes(
+                surface, sp, tw, th, off, skew, anim_info=(ar, ac, aaction, aprogress)
+            )
     elif state is not None and fall_state is None:
-        draw_block(surface, state, tw, th, off, skew)
+        if state.split is not None:
+            draw_split_cubes(surface, state.split, tw, th, off, skew)
+        else:
+            draw_block(surface, state, tw, th, off, skew)

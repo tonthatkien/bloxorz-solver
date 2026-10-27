@@ -1,4 +1,4 @@
-"""GUI chính của Bloxorz (Task D1/D2)."""
+"""GUI chính của Bloxorz (Task D1/D2/D4)."""
 import math
 from typing import Optional, Tuple
 import pygame
@@ -97,6 +97,8 @@ def run(level_path: str) -> None:
     anim_is_void = False
     anim_start_time = 0
     buffered_action: Optional[str] = None
+    anim_is_split = False
+    anim_split_tuple: Optional[Tuple[Tuple[int, int], Tuple[int, int]]] = None
 
     falling_goal = False
     falling_void = False
@@ -118,13 +120,14 @@ def run(level_path: str) -> None:
         - Nếu action nằm trong successors: nước đi hợp lệ -> (next_state, False).
         - Nếu action không nằm trong successors: nước đi rơi (thua) -> (phantom_state, True).
         """
-        if cur_state.split is not None:
-            return None, False
-
         # Kiểm tra tính hợp lệ qua Game Core
         for act, next_st, _ in game.get_successors(cur_state):
             if act == action:
                 return next_st, False
+
+        # Nếu đang ở trạng thái split mà Game Core chưa có successors hoặc đi vào ô cấm
+        if cur_state.split is not None:
+            return None, False
 
         # Không nằm trong successors -> khối lăn ra ngoài sàn rơi vực
         rolled = Block(cur_state.r, cur_state.c, cur_state.orient).roll(action)
@@ -138,6 +141,7 @@ def run(level_path: str) -> None:
         nonlocal falling_goal, falling_void, buffered_action
         nonlocal fall_shatter_pieces, spawning, spawn_start_time
         nonlocal spawn_r, spawn_c, spawn_orient, z_spawn
+        nonlocal anim_is_split, anim_split_tuple
 
         current_level_path = path
         level = load_level(current_level_path)
@@ -147,6 +151,8 @@ def run(level_path: str) -> None:
         state = game.initial_state()
         won, lost, move_count = False, False, 0
         animating = False
+        anim_is_split = False
+        anim_split_tuple = None
         falling_goal = False
         falling_void = False
         buffered_action = None
@@ -203,7 +209,7 @@ def run(level_path: str) -> None:
             )
         try:
             pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if is_hovering
-                                    else pygame.SYSTEM_CURSOR_ARROW)
+                                     else pygame.SYSTEM_CURSOR_ARROW)
         except pygame.error:
             pass
 
@@ -229,15 +235,31 @@ def run(level_path: str) -> None:
                 if event.key == pygame.K_r:
                     load_level_and_reset(current_level_path)
 
+                # Bấm phím SPACE để đổi quyền điều khiển khi ở trạng thái tách 2 cube (Task D4)
+                elif can_control and event.key == pygame.K_SPACE:
+                    if state.split is not None and not animating:
+                        c1, c2 = state.split
+                        state = State(
+                            r=0, c=0, orient=STAND, bridges=state.bridges, split=(c2, c1)
+                        )
+
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
                     if not animating:
                         ns, anim_is_void = _step(state, action)
                         if ns is not None:
                             animating = True
-                            anim_start_r = state.r
-                            anim_start_c = state.c
-                            anim_start_orient = state.orient
+                            if state.split is not None:
+                                anim_is_split = True
+                                anim_start_r, anim_start_c = state.split[0]
+                                anim_start_orient = STAND
+                                anim_split_tuple = state.split
+                            else:
+                                anim_is_split = False
+                                anim_start_r = state.r
+                                anim_start_c = state.c
+                                anim_start_orient = state.orient
+                                anim_split_tuple = None
                             anim_action = action
                             anim_next_state = ns
                             anim_start_time = pygame.time.get_ticks()
@@ -312,9 +334,17 @@ def run(level_path: str) -> None:
                         ns, anim_is_void = _step(state, b_act)
                         if ns is not None:
                             animating = True
-                            anim_start_r = state.r
-                            anim_start_c = state.c
-                            anim_start_orient = state.orient
+                            if state.split is not None:
+                                anim_is_split = True
+                                anim_start_r, anim_start_c = state.split[0]
+                                anim_start_orient = STAND
+                                anim_split_tuple = state.split
+                            else:
+                                anim_is_split = False
+                                anim_start_r = state.r
+                                anim_start_c = state.c
+                                anim_start_orient = state.orient
+                                anim_split_tuple = None
                             anim_action = b_act
                             anim_next_state = ns
                             anim_start_time = pygame.time.get_ticks()
@@ -355,9 +385,14 @@ def run(level_path: str) -> None:
             draw_scene(screen, level, None, tw, th, offset, skew,
                        spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn))
         elif animating:
+            if anim_is_split and anim_split_tuple is not None:
+                anim_tuple = ('split', anim_start_r, anim_start_c, anim_action,
+                              anim_progress, anim_split_tuple)
+            else:
+                anim_tuple = (anim_start_r, anim_start_c, anim_start_orient,
+                              anim_action, anim_progress)
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       anim_state=(anim_start_r, anim_start_c, anim_start_orient,
-                                   anim_action, anim_progress))
+                       anim_state=anim_tuple)
         elif falling_goal or falling_void:
             draw_scene(screen, level, None, tw, th, offset, skew,
                        fall_state=fall_tuple)
@@ -385,8 +420,12 @@ def run(level_path: str) -> None:
         btn_restart.draw(screen, mouse_pos)
         btn_new_game.draw(screen, mouse_pos)
 
-        # 4. Hướng dẫn phím điều khiển ở đáy màn hình
-        hint_str = "Arrow Keys: Move   •   R: Restart   •   ESC: Exit"
+        # 4. Hướng dẫn phím điều khiển ở đáy màn hình (Cập nhật động theo Task D4)
+        if state.split is not None:
+            hint_str = "Arrow Keys: Move   •   SPACE: Switch Cube   •   R: Restart   •   ESC: Exit"
+        else:
+            hint_str = "Arrow Keys: Move   •   R: Restart   •   ESC: Exit"
+
         hint_txt = font_hint.render(hint_str, True, (90, 60, 35))
         hw, hh = hint_txt.get_width() + 32, 34
         hx = (WINDOW_SIZE[0] - hw) // 2
