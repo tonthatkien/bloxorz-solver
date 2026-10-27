@@ -1,4 +1,4 @@
-### Tài liệu tham khảo (dùng cho báo cáo)
+# Tài liệu tham khảo (dùng cho báo cáo)
 
 **Quy tắc:** bất cứ thứ gì tham khảo (bài báo, sách, bài hướng dẫn, repo GitHub, câu trả lời StackOverflow, video) đều ghi vào đây
 **và** để comment link ngay trên đoạn code liên quan (nếu có dùng ý tưởng/đoạn code). Không copy nguyên repo hay bài của người khác. Solver phải tự cài đặt.
