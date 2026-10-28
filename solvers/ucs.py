@@ -19,9 +19,9 @@ def _finite_cost(step_cost: float) -> float:
         raise ValueError("Chi phí chuyển trạng thái phải là một số hữu hạn.") from error
     if not math.isfinite(cost):
         raise ValueError("Chi phí chuyển trạng thái phải là một số hữu hạn.")
-    # UCS tổng quát yêu cầu chi phí không âm; hàm chi phí Bloxorz hiện tại luôn dương,
-    # tối thiểu 0.5. Trên không gian hữu hạn, solver kết thúc; cạnh 0 cũng không gây
-    # lặp vô hạn vì chỉ cập nhật khi tìm được đường đi rẻ hơn.
+    # UCS tổng quát cho phép chi phí 0.
+    # Nếu có cạnh 0, solve() chỉ cập nhật khi tìm được đường rẻ hơn nên chu trình
+    # 0 không enqueue lại trạng thái với cùng chi phí trên không gian hữu hạn.
     if cost < 0:
         raise ValueError("Chi phí chuyển trạng thái không âm để UCS đảm bảo tối ưu.")
     return cost
