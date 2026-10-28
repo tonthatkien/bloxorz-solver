@@ -8,7 +8,7 @@ from game.dummy_game import DummyGame
 from game.game import Game
 from game.level_loader import load_level, parse_level
 from solvers import astar
-from solvers.base import Limits
+from solvers.base import Limits, LimitReached
 from solvers.heuristics import h_manhattan_orient, h_zero, make_cost_fn
 from solvers.heuristics_advanced import HEURISTICS, clear_caches
 from solvers.metrics import measure, verify_path
@@ -78,6 +78,11 @@ class TestAStarDummyGame(unittest.TestCase):
     def test_infinite_heuristic_at_start_is_unsolved(self):
         res = astar.solve_with(self.game, lambda g, s: math.inf)
         self.assertFalse(res.solved)
+
+    def test_limit_reached_raised_directly(self):
+        """astar.solve_with KHÔNG catch LimitReached — measure() là lớp duy nhất được catch."""
+        with self.assertRaisesRegex(LimitReached, "node_limit"):
+            astar.solve_with(DummyGame(1), dummy_h, Limits(max_nodes=0))
 
     def test_node_limit_is_reported(self):
         res = measure(as_solver(dummy_h), self.game, Limits(max_nodes=3))

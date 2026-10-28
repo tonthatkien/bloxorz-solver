@@ -7,7 +7,7 @@ from game.dummy_game import DummyGame
 from game.game import Game
 from game.level_loader import load_level
 from solvers import dfs
-from solvers.base import Limits
+from solvers.base import LimitReached, Limits
 from solvers.metrics import measure, verify_path
 
 LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.json"
@@ -64,7 +64,13 @@ class TestDfs(unittest.TestCase):
         self.assertGreater(res.peak_memory_kb, 0)
         self.assertAlmostEqual(res.cost, verify_path(game, res.path)[1])
 
+    def test_limit_reached_raised_directly(self):
+        """dfs.solve KHÔNG được tự catch LimitReached — phải propagate ra cho caller."""
+        with self.assertRaisesRegex(LimitReached, "node_limit"):
+            dfs.solve(DummyGame(1), Limits(max_nodes=0))
+
     def test_node_limit_is_reported(self):
+        """measure() catch LimitReached và ghi note="node_limit" vào SearchResult."""
         res = measure(dfs.solve, DummyGame(10), Limits(max_nodes=3))
         self.assertFalse(res.solved)
         self.assertEqual(res.note, "node_limit")
