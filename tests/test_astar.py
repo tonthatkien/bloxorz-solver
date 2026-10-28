@@ -14,7 +14,6 @@ from solvers.heuristics_advanced import HEURISTICS, clear_caches
 from solvers.metrics import measure, verify_path
 from tests.reference_game import ReferenceGame, explore, true_costs
 from tests.test_heuristics_advanced import BRIDGE_LEVEL, SPLIT_LEVEL
-from tests.test_metrics import toy_bfs
 
 LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.json"
 
@@ -112,7 +111,8 @@ class TestAStarRealLevel(unittest.TestCase):
 
     def test_unit_cost_length_matches_bfs(self):
         res = astar.solve(self.unit_game)
-        self.assertEqual(len(res.path), len(toy_bfs(self.unit_game).path))
+        OPTIMAL_LENGTH = 8  # g1_basic_01.json
+        self.assertEqual(len(res.path), OPTIMAL_LENGTH)
 
     def test_default_solve_matches_default_heuristic(self):
         res = astar.solve(self.unit_game)

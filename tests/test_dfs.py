@@ -9,7 +9,6 @@ from game.level_loader import load_level
 from solvers import dfs
 from solvers.base import Limits
 from solvers.metrics import measure, verify_path
-from tests.test_metrics import toy_bfs
 
 LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.json"
 
@@ -36,7 +35,8 @@ class TestDfs(unittest.TestCase):
 
     def test_path_is_not_shorter_than_bfs(self):
         game = Game(load_level(str(LEVEL_PATH)))
-        self.assertGreaterEqual(len(dfs.solve(game).path), len(toy_bfs(game).path))
+        OPTIMAL_LENGTH = 8  # g1_basic_01.json: BFS tìm được path 8 bước
+        self.assertGreaterEqual(len(dfs.solve(game).path), OPTIMAL_LENGTH)
 
     def test_start_is_goal_returns_empty_path(self):
         res = dfs.solve(DummyGame(0))
@@ -81,7 +81,8 @@ class TestDfs(unittest.TestCase):
         """DFS không tối ưu: cost >= cost tối ưu (BFS cùng cost function)."""
         game = Game(load_level(str(LEVEL_PATH)))
         res = dfs.solve(game)
-        self.assertGreaterEqual(res.cost, toy_bfs(game).cost)
+        OPTIMAL_COST = 8.0  # = độ dài tối ưu với unit cost trên g1_basic_01
+        self.assertGreaterEqual(res.cost, OPTIMAL_COST)
 
 if __name__ == "__main__":
     unittest.main()
