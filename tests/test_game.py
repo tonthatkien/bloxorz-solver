@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 from game.block import DOWN, LEFT, RIGHT, UP
 from game.game import Game
-from game.level_loader import load_level
 from game.state import HORIZ, STAND, VERT, State
+from game.level_loader import Level, load_level
 
 GRID = [
     "###..",
@@ -20,8 +20,16 @@ LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.js
 
 
 def make_game(cost_fn=None, grid=GRID):
-    # Level giả tối thiểu, để test không phụ thuộc file JSON hay level_loader
-    level = SimpleNamespace(start=(0, 0), grid=grid, initial_bridge_mask=lambda: 0)
+    # Level tối thiểu dựng bằng dataclass thật, để đủ mọi field mà TileRules cần.
+    level = Level(
+        name="test",
+        grid=grid,
+        start=(0, 0),
+        goal=(2, 2),
+        fragile=set(),
+        bridges={},
+        switches={},
+    )
     return Game(level, cost_fn)
 
 

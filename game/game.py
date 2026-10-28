@@ -1,4 +1,5 @@
 """Giao diện game mà solver và GUI dùng. CHỈ ĐƯỢC GỌI QUA 3 HÀM DƯỚI ĐÂY.
+
 Quy ước:
 - Hành động: "U", "D", "L", "R"; "S" = đổi cube đang điều khiển (chỉ khi đang tách).
 - Thứ tự sinh hành động CỐ ĐỊNH: U, D, L, R, S (để DFS lặp lại được kết quả).
@@ -10,8 +11,11 @@ from typing import Callable, List, Optional, Tuple
 
 from .block import Block
 from .board import Board
+from .cube import move_cube
 from .level_loader import Level
+from .split import activate_split_switch
 from .state import STAND, State
+from .tiles import TileRules
 
 Action = str
 ACTIONS = ("U", "D", "L", "R", "S")
@@ -28,6 +32,7 @@ class Game:
         self.cost_fn = cost_fn
         # Dựng một lần, không dựng lại mỗi lần get_successors (CODING_STANDARDS mục 7)
         self.board = Board.from_strings(level.grid)
+        self.tile_rules = TileRules.from_level(level)
 
     def initial_state(self) -> State:
         """Khối đứng ở ô start, cầu theo trạng thái ban đầu trong level."""
@@ -39,12 +44,44 @@ class Game:
         return s.split is None and self.board.is_win(Block(s.r, s.c, s.orient))
 
     def get_successors(self, s: State) -> List[Tuple[Action, State, float]]:
-        """Trả về [(action, new_state, cost), ...] chỉ gồm nước đi HỢP LỆ (thứ tự U, D, L, R)."""
-        # TODO [B]: ô dễ vỡ, cầu, công tắc | [C]: tách/ghép, cube đơn, hành động "S"
+        """Trả về các nước đi hợp lệ theo thứ tự U, D, L, R, S."""
         result: List[Tuple[Action, State, float]] = []
-        for action, block in self.board.valid_moves(Block(s.r, s.c, s.orient)):
-            new_state = State(block.r, block.c, block.orient, s.bridges, s.split)
-            result.append((action, new_state, self.step_cost(s, action, new_state)))
+
+        if s.split is not None:
+            # C1 xử lý di chuyển một ô, đổi cube điều khiển, và tự ghép.
+            for action in ACTIONS:
+                try:
+                    moved = move_cube(s, action, self.level)
+                except ValueError:
+                    # Invalid state/action is not a legal successor.
+                    continue
+                if moved is None:
+                    continue
+                resolved = self.tile_rules.resolve_landing(s, moved)
+                if resolved is None:
+                    continue
+                # LƯU Ý: nếu `moved` đã merge (split=None) và ô merge trùng
+                # split switch, ta CỐ Ý không gọi activate_split_switch ở đây
+                # để tránh vòng lặp tách→ghép vô hạn. Split switch chỉ kích hoạt
+                # khi khối thường DI CHUYỂN (lăn) vào ô switch, không kích hoạt
+                # khi merge tại chỗ. Nếu nhóm đổi quyết định, thêm:
+                #   split_state = activate_split_switch(s, resolved, self.level)
+                #   if split_state is not None: resolved = split_state
+                result.append((action, resolved, self.step_cost(s, action, resolved)))
+            return result
+
+        block = Block(s.r, s.c, s.orient)
+        for action, next_block in self.board.valid_moves(block):
+            landed = State(next_block.r, next_block.c, next_block.orient, s.bridges, None)
+            resolved = self.tile_rules.resolve_landing(s, landed)
+            if resolved is None:
+                continue
+
+            split_state = activate_split_switch(s, resolved, self.level)
+            if split_state is not None:
+                resolved = split_state
+
+            result.append((action, resolved, self.step_cost(s, action, resolved)))
         return result
 
     def step_cost(self, old: State, action: Action, new: State) -> float:
