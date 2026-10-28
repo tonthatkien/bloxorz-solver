@@ -6,17 +6,17 @@ from types import SimpleNamespace
 
 from game.dummy_game import DummyGame
 from game.game import Game
-from game.level_loader import load_level
+from game.level_loader import load_level, parse_level
 from solvers import astar
 from solvers.base import Limits
-from solvers.heuristics import (h_manhattan, h_manhattan_orient, h_relaxed_maze, h_zero,
-                                make_cost_fn)
+from solvers.heuristics import h_manhattan_orient, h_zero, make_cost_fn
+from solvers.heuristics_advanced import HEURISTICS, clear_caches
 from solvers.metrics import measure, verify_path
+from tests.reference_game import ReferenceGame, explore, true_costs
+from tests.test_heuristics_advanced import BRIDGE_LEVEL, SPLIT_LEVEL
 from tests.test_metrics import toy_bfs
 
 LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.json"
-HEURISTICS = {"h_zero": h_zero, "h_manhattan": h_manhattan,
-              "h_manhattan_orient": h_manhattan_orient, "h_relaxed_maze": h_relaxed_maze}
 
 
 def dummy_h(game, state) -> float:
@@ -128,6 +128,57 @@ class TestAStarRealLevel(unittest.TestCase):
         res = astar.solve_with(make_unsolvable_game(), h_zero)
         self.assertFalse(res.solved)
         self.assertEqual(res.expanded_nodes, 2)
+
+
+    def test_heuristic_can_be_chosen_by_name(self):
+        by_name = astar.solve_with(self.unit_game, "switch_aware")
+        by_function = astar.solve_with(self.unit_game, HEURISTICS["switch_aware"])
+        self.assertEqual((by_name.path, by_name.expanded_nodes),
+                         (by_function.path, by_function.expanded_nodes))
+
+    def test_unknown_heuristic_name_is_rejected(self):
+        with self.assertRaises(KeyError):
+            astar.solve_with(self.unit_game, "khong_ton_tai")
+
+    def test_solver_for_works_with_measure(self):
+        res = measure(astar.solver_for("advanced"), self.unit_game)
+        self.assertTrue(res.solved)
+        self.assertTrue(verify_path(self.unit_game, res.path)[0])
+
+    def test_switch_aware_expands_fewer_nodes_than_manhattan_orient(self):
+        sharp = astar.solve_with(self.unit_game, "switch_aware").expanded_nodes
+        loose = astar.solve_with(self.unit_game, h_manhattan_orient).expanded_nodes
+        self.assertLess(sharp, loose)
+
+
+class TestAStarAdvancedLevels(unittest.TestCase):
+    """Màn có cầu/công tắc/split (qua ReferenceGame): A* phải ra đúng chi phí tối ưu thật."""
+
+    def setUp(self):
+        clear_caches()
+
+    def tearDown(self):
+        clear_caches()
+
+    def test_every_heuristic_returns_the_true_optimal_cost(self):
+        for label, data in (("bridge", BRIDGE_LEVEL), ("split", SPLIT_LEVEL)):
+            level = parse_level(data)
+            for weighted in (False, True):
+                game = ReferenceGame(level, weighted)
+                edges = explore(game)
+                optimal = true_costs(game, edges)[game.initial_state()]
+                for name, heuristic in HEURISTICS.items():
+                    with self.subTest(level=label, weighted=weighted, heuristic=name):
+                        res = astar.solve_with(game, heuristic)
+                        self.assertTrue(res.solved)
+                        self.assertAlmostEqual(res.cost, optimal)
+                        self.assertTrue(verify_path(game, res.path)[0])
+
+    def test_advanced_expands_no_more_nodes_than_zero_on_split_level(self):
+        game = ReferenceGame(parse_level(SPLIT_LEVEL))
+        informed = astar.solve_with(game, "advanced").expanded_nodes
+        blind = astar.solve_with(game, "zero").expanded_nodes
+        self.assertLessEqual(informed, blind)
 
 
 if __name__ == "__main__":
