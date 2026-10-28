@@ -179,6 +179,30 @@ class TestAStarAdvancedLevels(unittest.TestCase):
         informed = astar.solve_with(game, "advanced").expanded_nodes
         blind = astar.solve_with(game, "zero").expanded_nodes
         self.assertLessEqual(informed, blind)
+    
+    def test_negative_heuristic_at_start_raises(self):
+        """h<0 vi phạm admissible -> phải raise, không được âm thầm cho chạy."""
+        game = DummyGame(10)
+        with self.assertRaises(ValueError):
+            astar.solve_with(game, lambda g, s: -1.0)
+
+
+    def test_nan_heuristic_at_start_raises(self):
+        """h=NaN làm hỏng heapq -> phải raise ngay."""
+        game = DummyGame(10)
+        with self.assertRaises(ValueError):
+            astar.solve_with(game, lambda g, s: math.nan)
+
+
+    def test_negative_heuristic_in_successor_raises(self):
+        """h<0 chỉ xuất hiện ở successor (không phải start) vẫn phải bị chặn."""
+        game = DummyGame(10)
+
+        def bad_h(g, s):
+            return -1.0 if s.r == 5 else float(game.n - s.r)
+
+        with self.assertRaises(ValueError):
+            astar.solve_with(game, bad_h)
 
 
 if __name__ == "__main__":

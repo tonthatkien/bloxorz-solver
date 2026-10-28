@@ -33,6 +33,12 @@ from .heuristics_advanced import HEURISTICS, Heuristic, get_heuristic, h_advance
 DEFAULT_HEURISTIC: Heuristic = h_advanced
 
 
+def _validate_heuristic_value(h_val: float) -> None:
+    """Kiểm tra giá trị heuristic phải là số thực không âm và không phải NaN."""
+    if math.isnan(h_val) or h_val < 0:
+        raise ValueError("Heuristic phải là số thực không âm.")
+
+
 def solve_with(game, heuristic: Union[str, Heuristic],
                limits: Optional[Limits] = None) -> SearchResult:
     """A* với heuristic tùy chọn (hàm hoặc tên); `cost` trong kết quả là g của nút đích."""
@@ -40,6 +46,7 @@ def solve_with(game, heuristic: Union[str, Heuristic],
     checker = LimitChecker(limits)
     start = game.initial_state()
     h_start = h(game, start)
+    _validate_heuristic_value(h_start)
     if math.isinf(h_start):
         return SearchResult(solved=False)
     best_g = {start: 0.0}
@@ -62,6 +69,7 @@ def solve_with(game, heuristic: Union[str, Heuristic],
             if new_g >= best_g.get(nxt, math.inf):
                 continue
             h_next = h(game, nxt)
+            _validate_heuristic_value(h_next)
             if math.isinf(h_next):
                 continue
             best_g[nxt] = new_g
