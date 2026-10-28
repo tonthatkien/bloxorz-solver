@@ -1,4 +1,4 @@
-"""Bộ giải tìm kiếm theo chi phí đồng nhất (UCS)."""
+"""Thuật toán UCS."""
 
 import heapq
 import itertools
