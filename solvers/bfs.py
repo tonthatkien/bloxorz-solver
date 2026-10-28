@@ -1,4 +1,4 @@
-"""Bộ giải tìm kiếm theo chiều rộng (BFS)."""
+"""Thuật toán BFS."""
 
 import math
 from collections import deque
