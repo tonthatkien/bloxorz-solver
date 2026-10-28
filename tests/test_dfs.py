@@ -69,6 +69,19 @@ class TestDfs(unittest.TestCase):
         self.assertFalse(res.solved)
         self.assertEqual(res.note, "node_limit")
 
+    def test_cost_matches_path_cost_without_measure(self):
+        """dfs.solve phải trả cost khớp tổng step của path (không cần measure)."""
+        game = Game(load_level(str(LEVEL_PATH)))
+        res = dfs.solve(game)
+        self.assertTrue(res.solved)
+        _, expected = verify_path(game, res.path)
+        self.assertAlmostEqual(res.cost, expected)
+
+    def test_cost_is_non_negative_and_gte_optimal(self):
+        """DFS không tối ưu: cost >= cost tối ưu (BFS cùng cost function)."""
+        game = Game(load_level(str(LEVEL_PATH)))
+        res = dfs.solve(game)
+        self.assertGreaterEqual(res.cost, toy_bfs(game).cost)
 
 if __name__ == "__main__":
     unittest.main()
