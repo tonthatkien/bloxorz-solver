@@ -1,26 +1,3 @@
-"""Solver A* (task E2): mở rộng nút có f = g + h nhỏ nhất.
-
-- g: tổng chi phí thật từ trạng thái đầu (lấy từ số thứ 3 của game.get_successors, nên
-  dùng đúng hàm chi phí mà Game được tạo với, đồng đều hoặc make_cost_fn).
-- h: heuristic `h(game, state) -> float`, truyền vào bằng HÀM hoặc bằng TÊN trong
-  solvers.heuristics_advanced.HEURISTICS ("zero", "manhattan", "manhattan_orient",
-  "relaxed_maze", "switch_aware", "split_cubes", "advanced").
-- Heuristic mặc định là h_advanced: admissible và consistent trên mọi nhóm màn (chứng minh ở
-  docs/cost_heuristic.md, mục III), nên A* cho chi phí tối ưu, bằng UCS.
-  Với "zero" thì A* chính là UCS.
-
-Chi tiết cài đặt:
-- Hàng đợi ưu tiên heapq với tuple (f, counter, g, state). `counter` phá hòa để Python không
-  bao giờ phải so sánh hai State với nhau (CODING_STANDARDS mục 4).
-- `best_g[state]` là chi phí nhỏ nhất đã biết tới state. Khi tìm được đường rẻ hơn thì push thêm
-  một bản mới; bản cũ nằm lại trong heap và bị bỏ qua khi pop ra (g > best_g), không được đếm
-  vào expanded ("lazy deletion"). Cách này vẫn đúng kể cả khi heuristic không consistent.
-- Kiểm tra đích khi pop (không phải lúc sinh) để đảm bảo tối ưu với chi phí không đồng đều.
-- Nếu heuristic trả math.inf thì trạng thái đó không thể tới đích, bỏ qua luôn.
-
-`solve(game, limits)` giữ đúng hợp đồng chung; `solve_with` chọn heuristic; `solver_for` trả
-về một hàm `(game, limits) -> SearchResult` để dùng với measure()/run_measured, GUI, thực nghiệm.
-"""
 import heapq
 import math
 from typing import Callable, Optional, Union
@@ -34,9 +11,20 @@ DEFAULT_HEURISTIC: Heuristic = h_advanced
 
 
 def _validate_heuristic_value(h_val: float) -> None:
-    """Kiểm tra giá trị heuristic phải là số thực không âm và không phải NaN."""
+    """Heuristic phải là số thực không âm và không NaN (bảo vệ admissible)."""
     if math.isnan(h_val) or h_val < 0:
         raise ValueError("Heuristic phải là số thực không âm.")
+
+
+def _validate_step_cost(step: float) -> None:
+    """Chi phí bước đi phải hữu hạn và không âm.
+
+    A* chỉ tối ưu khi mọi cạnh có chi phí >= 0 hữu hạn (đề mục 3.4, 3.5).
+    step âm có thể tạo chu trình âm -> best_g giảm vô hạn -> A* không kết thúc.
+    step NaN/inf làm hỏng so sánh heapq y như NaN heuristic.
+    """
+    if not math.isfinite(step) or step < 0:
+        raise ValueError("Chi phí chuyển trạng thái phải là số hữu hạn không âm.")
 
 
 def solve_with(game, heuristic: Union[str, Heuristic],
@@ -65,6 +53,7 @@ def solve_with(game, heuristic: Union[str, Heuristic],
             return SearchResult(solved=True, path=path, expanded_nodes=expanded,
                                 length=len(path), cost=g)
         for action, nxt, step in game.get_successors(state):
+            _validate_step_cost(step)              # ← mới: chặn step<0/NaN/inf
             new_g = g + step
             if new_g >= best_g.get(nxt, math.inf):
                 continue

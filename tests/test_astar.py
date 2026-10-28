@@ -204,6 +204,50 @@ class TestAStarAdvancedLevels(unittest.TestCase):
         with self.assertRaises(ValueError):
             astar.solve_with(game, bad_h)
 
+class _BadCostGame:
+    """Game tối giản: một cạnh duy nhất từ 'S' đến 'G' với step cố định.
+
+    Dùng để test validation step trong A* mà không cần dựng level thật.
+    State là string nên hashable, reconstruct_path dùng được bình thường.
+    """
+
+    def __init__(self, step):
+        self.step = step
+
+    def initial_state(self):
+        return "S"
+
+    def is_goal(self, state):
+        return state == "G"
+
+    def get_successors(self, state):
+        if state == "S":
+            return [("R", "G", self.step)]
+        return []
+
+def test_negative_step_cost_raises(self):
+    """step < 0 phá tính tối ưu của A* (chu trình âm) -> phải raise."""
+    with self.assertRaises(ValueError):
+        astar.solve_with(_BadCostGame(-1.0), h_zero)
+
+
+def test_nan_step_cost_raises(self):
+    """step = NaN làm hỏng heapq -> phải raise."""
+    with self.assertRaises(ValueError):
+        astar.solve_with(_BadCostGame(math.nan), h_zero)
+
+
+def test_infinite_step_cost_raises(self):
+    """step = inf phá best_g comparison -> phải raise."""
+    with self.assertRaises(ValueError):
+        astar.solve_with(_BadCostGame(math.inf), h_zero)
+
+
+def test_zero_step_cost_is_allowed(self):
+    """step = 0 hợp lệ (zero-cost edge) — không được raise."""
+    res = astar.solve_with(_BadCostGame(0.0), h_zero)
+    self.assertTrue(res.solved)
+    self.assertEqual(res.cost, 0.0)
 
 if __name__ == "__main__":
     unittest.main()
