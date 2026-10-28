@@ -4,7 +4,6 @@ import math
 from collections import deque
 from typing import Optional
 
-from game.game import Game
 from game.state import State
 
 from .base import LimitChecker, Limits, SearchResult, reconstruct_path
@@ -21,7 +20,7 @@ def _finite_cost(step_cost: float) -> float:
     return cost
 
 
-def solve(game: Game, limits: Optional[Limits] = None) -> SearchResult:
+def solve(game, limits: Optional[Limits] = None) -> SearchResult:
     """Tìm đường đi có ít hành động nhất, dùng FIFO và đánh dấu visited khi đưa vào hàng đợi."""
     checker = LimitChecker(limits)
     start = game.initial_state()

@@ -1,17 +1,25 @@
 """Test BFS."""
 
 import unittest
+from pathlib import Path
 
 from game.dummy_game import DummyGame
+from game.game import Game
+from game.level_loader import load_level
 from game.state import State
 from solvers.base import LimitReached, Limits
 from solvers.bfs import solve
+from solvers.metrics import verify_path
 
 
 class GraphGame:
     """Đồ thị có hướng nhỏ, cung cấp các phương thức Game mà solver sử dụng."""
 
-    def __init__(self, edges: dict[State, list[tuple[str, State, float]]], goal: State):
+    def __init__(
+        self,
+        edges: dict[State, list[tuple[str, State, float]]],
+        goal: State,
+    ) -> None:
         self.edges = edges
         self.start = State(0, 0)
         self.goal = goal
@@ -112,6 +120,18 @@ class TestBreadthFirstSearch(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "số hữu hạn"):
             solve(game)
+
+    def test_solves_real_level_and_verify_path_accepts_result(self) -> None:
+        level_path = Path(__file__).resolve().parents[1] / "levels" / "g1_basic_01.json"
+        game = Game(load_level(str(level_path)))
+
+        result = solve(game)
+
+        self.assertTrue(result.solved)
+        is_valid, replayed_cost = verify_path(game, result.path)
+        self.assertTrue(is_valid)
+        self.assertEqual(result.length, len(result.path))
+        self.assertAlmostEqual(result.cost, replayed_cost)
 
 
 if __name__ == "__main__":

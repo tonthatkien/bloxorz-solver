@@ -1,10 +1,15 @@
 """Test UCS."""
 
 import unittest
+from pathlib import Path
 
+from game.dummy_game import DummyGame
+from game.game import Game
+from game.level_loader import load_level
 from game.state import State
 from solvers.base import LimitReached, Limits
 from solvers.ucs import solve
+from solvers.metrics import verify_path
 
 
 class GraphGame:
@@ -129,6 +134,27 @@ class TestUniformCostSearch(unittest.TestCase):
 
                 with self.assertRaises(ValueError):
                     solve(game)
+
+    def test_prefers_cheaper_longer_path_in_dummy_game(self) -> None:
+        """UCS chọn mười bước R giá 10 thay cho năm bước D giá 15."""
+        result = solve(DummyGame(10))
+
+        self.assertTrue(result.solved)
+        self.assertEqual(result.path, ["R"] * 10)
+        self.assertEqual(result.length, 10)
+        self.assertEqual(result.cost, 10.0)
+
+    def test_solves_real_level_and_verify_path_accepts_result(self) -> None:
+        level_path = Path(__file__).resolve().parents[1] / "levels" / "g1_basic_01.json"
+        game = Game(load_level(str(level_path)))
+
+        result = solve(game)
+
+        self.assertTrue(result.solved)
+        is_valid, replayed_cost = verify_path(game, result.path)
+        self.assertTrue(is_valid)
+        self.assertEqual(result.length, len(result.path))
+        self.assertAlmostEqual(result.cost, replayed_cost)
 
 
 if __name__ == "__main__":
