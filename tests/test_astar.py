@@ -2,7 +2,6 @@
 import math
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 from game.dummy_game import DummyGame
 from game.game import Game
@@ -32,7 +31,7 @@ def as_solver(heuristic):
 
 def make_unsolvable_game() -> Game:
     """Đích ở (0,4) bị ngăn bởi ô trống (0,3); chỉ có 2 state lăn qua lại."""
-    level = SimpleNamespace(start=(0, 0), grid=["###.G"], initial_bridge_mask=lambda: 0)
+    level = parse_level({"grid": ["###.G"], "start": [0, 0], "goal": [0, 4]})
     return Game(level)
 
 
@@ -230,29 +229,52 @@ class _BadCostGame:
             return [("R", "G", self.step)]
         return []
 
-def test_negative_step_cost_raises(self):
-    """step < 0 phá tính tối ưu của A* (chu trình âm) -> phải raise."""
-    with self.assertRaises(ValueError):
-        astar.solve_with(_BadCostGame(-1.0), h_zero)
+
+class TestAStarStepCostValidation(unittest.TestCase):
+    """Chi phí bước không hợp lệ phải bị chặn, không được âm thầm cho chạy."""
+
+    def test_negative_step_cost_raises(self):
+        """step < 0 phá tính tối ưu của A* (chu trình âm) -> phải raise."""
+        with self.assertRaises(ValueError):
+            astar.solve_with(_BadCostGame(-1.0), h_zero)
+
+    def test_nan_step_cost_raises(self):
+        """step = NaN làm hỏng heapq -> phải raise."""
+        with self.assertRaises(ValueError):
+            astar.solve_with(_BadCostGame(math.nan), h_zero)
+
+    def test_infinite_step_cost_raises(self):
+        """step = inf phá best_g comparison -> phải raise."""
+        with self.assertRaises(ValueError):
+            astar.solve_with(_BadCostGame(math.inf), h_zero)
+
+    def test_zero_step_cost_is_allowed(self):
+        """step = 0 hợp lệ (zero-cost edge) - không được raise."""
+        res = astar.solve_with(_BadCostGame(0.0), h_zero)
+        self.assertTrue(res.solved)
+        self.assertEqual(res.cost, 0.0)
 
 
-def test_nan_step_cost_raises(self):
-    """step = NaN làm hỏng heapq -> phải raise."""
-    with self.assertRaises(ValueError):
-        astar.solve_with(_BadCostGame(math.nan), h_zero)
+class TestAStarOnAllLevels(unittest.TestCase):
+    """A* mặc định không được báo sai "không giải được" hoặc sai chi phí so với UCS (h_zero)."""
 
+    def test_default_matches_ucs_on_every_level_file(self):
+        limits = Limits(max_nodes=300_000)
+        for path in sorted(LEVEL_PATH.parent.glob("*.json")):
+            level = load_level(str(path))
+            for weighted in (False, True):
+                game = Game(level, cost_fn=make_cost_fn(level) if weighted else None)
+                clear_caches()
+                with self.subTest(level=path.name, weighted=weighted):
+                    try:
+                        ucs = astar.solve_with(game, h_zero, limits)
+                        default = astar.solve(game, limits)
+                    except LimitReached:
+                        continue
+                    self.assertEqual(default.solved, ucs.solved)
+                    if ucs.solved:
+                        self.assertAlmostEqual(default.cost, ucs.cost)
 
-def test_infinite_step_cost_raises(self):
-    """step = inf phá best_g comparison -> phải raise."""
-    with self.assertRaises(ValueError):
-        astar.solve_with(_BadCostGame(math.inf), h_zero)
-
-
-def test_zero_step_cost_is_allowed(self):
-    """step = 0 hợp lệ (zero-cost edge) — không được raise."""
-    res = astar.solve_with(_BadCostGame(0.0), h_zero)
-    self.assertTrue(res.solved)
-    self.assertEqual(res.cost, 0.0)
 
 if __name__ == "__main__":
     unittest.main()

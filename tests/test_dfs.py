@@ -1,11 +1,10 @@
 """Unit test cho solvers/dfs.py (task E2)."""
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 from game.dummy_game import DummyGame
 from game.game import Game
-from game.level_loader import load_level
+from game.level_loader import load_level, parse_level
 from solvers import dfs
 from solvers.base import LimitReached, Limits
 from solvers.metrics import measure, verify_path
@@ -15,7 +14,7 @@ LEVEL_PATH = Path(__file__).resolve().parent.parent / "levels" / "g1_basic_01.js
 
 def make_unsolvable_game() -> Game:
     """Đích ở (0,4) bị ngăn bởi ô trống (0,3); chỉ có 2 state lăn qua lại (STAND, HORIZ)."""
-    level = SimpleNamespace(start=(0, 0), grid=["###.G"], initial_bridge_mask=lambda: 0)
+    level = parse_level({"grid": ["###.G"], "start": [0, 0], "goal": [0, 4]})
     return Game(level)
 
 

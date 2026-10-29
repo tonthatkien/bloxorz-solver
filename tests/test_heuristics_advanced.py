@@ -173,7 +173,6 @@ class TestRandomLevels(CacheCleaningTestCase):
 
 
 class TestRealGameAdvancedLevels(unittest.TestCase):
-    @unittest.skip("Bật khi C3 (tích hợp công tắc/split vào Game) đã merge")
     def test_no_violations_on_real_game_for_g2_g3_g4_levels(self):
         for path in sorted(LEVEL_DIR.glob("g[234]_*.json")):
             game = Game(load_level(str(path)))
