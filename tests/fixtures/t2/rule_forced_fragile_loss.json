@@ -1,0 +1,20 @@
+{
+  "name": "g2_rule_forced_fragile_loss",
+  "grid": [
+    "######G"
+  ],
+  "start": [
+    0,
+    0
+  ],
+  "goal": [
+    0,
+    6
+  ],
+  "fragile": [
+    [
+      0,
+      3
+    ]
+  ]
+}
