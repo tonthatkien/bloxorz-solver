@@ -11,7 +11,7 @@ from typing import Callable, List, Optional, Tuple
 
 from .block import Block
 from .board import Board
-from .cube import move_cube
+from .cube import move_cube, try_merge
 from .level_loader import Level
 from .split import activate_split_switch
 from .state import STAND, State
@@ -27,7 +27,7 @@ CostFn = Callable[[State, Action, State], float]
 class Game:
     """Giao diện duy nhất của solver/GUI: initial_state, is_goal, get_successors."""
 
-    def __init__(self, level: Level, cost_fn: Optional[CostFn] = None):
+    def __init__(self, level: Level, cost_fn: Optional[CostFn] = None) -> None:
         self.level = level
         self.cost_fn = cost_fn
         # Dựng một lần, không dựng lại mỗi lần get_successors (CODING_STANDARDS mục 7)
@@ -44,43 +44,34 @@ class Game:
         return s.split is None and self.board.is_win(Block(s.r, s.c, s.orient))
 
     def get_successors(self, s: State) -> List[Tuple[Action, State, float]]:
-        """Trả về các nước đi hợp lệ theo thứ tự U, D, L, R, S."""
-        result: List[Tuple[Action, State, float]] = []
-
+        """Sinh nước U, D, L, R, S; chỉ tính chi phí sau khi chốt trạng thái cuối."""
+        moves: List[Tuple[Action, Optional[State]]]
         if s.split is not None:
-            # C1 xử lý di chuyển một ô, đổi cube điều khiển, và tự ghép.
-            for action in ACTIONS:
-                try:
-                    moved = move_cube(s, action, self.level)
-                except ValueError:
-                    # Invalid state/action is not a legal successor.
-                    continue
-                if moved is None:
-                    continue
-                resolved = self.tile_rules.resolve_landing(s, moved)
-                if resolved is None:
-                    continue
-                # LƯU Ý: nếu `moved` đã merge (split=None) và ô merge trùng
-                # split switch, ta CỐ Ý không gọi activate_split_switch ở đây
-                # để tránh vòng lặp tách→ghép vô hạn. Split switch chỉ kích hoạt
-                # khi khối thường DI CHUYỂN (lăn) vào ô switch, không kích hoạt
-                # khi merge tại chỗ. Nếu nhóm đổi quyết định, thêm:
-                #   split_state = activate_split_switch(s, resolved, self.level)
-                #   if split_state is not None: resolved = split_state
-                result.append((action, resolved, self.step_cost(s, action, resolved)))
-            return result
+            # Trạng thái split kề nhau vi phạm tiền điều kiện C1, không có nước hợp lệ.
+            if try_merge(s.split[0], s.split[1], s.bridges) is not None:
+                return []
+            moves = [(action, move_cube(s, action, self.level)) for action in ACTIONS]
+        else:
+            block = Block(s.r, s.c, s.orient)
+            moves = [(action, State(pose.r, pose.c, pose.orient, s.bridges))
+                     for action, pose in self.board.valid_moves(block)]
 
-        block = Block(s.r, s.c, s.orient)
-        for action, next_block in self.board.valid_moves(block):
-            landed = State(next_block.r, next_block.c, next_block.orient, s.bridges, None)
-            resolved = self.tile_rules.resolve_landing(s, landed)
+        result: List[Tuple[Action, State, float]] = []
+        for action, moved in moves:
+            if moved is None:
+                continue
+            # B2 kiểm tra sàn trước/sau hiệu ứng, gồm cả cube đang đứng yên.
+            resolved = self.tile_rules.resolve_landing(s, moved)
             if resolved is None:
                 continue
-
-            split_state = activate_split_switch(s, resolved, self.level)
-            if split_state is not None:
-                resolved = split_state
-
+            # Theo C2, chỉ lăn khối thường mới kích hoạt split, không phải lúc ghép.
+            if s.split is None:
+                split_state = activate_split_switch(s, resolved, self.level)
+                if split_state is not None:
+                    resolved = split_state
+                    # Dịch chuyển đổi footprint; phải kiểm tra cả hai điểm đến.
+                    if not self.tile_rules.is_supported(resolved):
+                        continue
             result.append((action, resolved, self.step_cost(s, action, resolved)))
         return result
 
