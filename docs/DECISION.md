@@ -30,7 +30,14 @@ Cầu đóng vẽ như ô trống, cầu mở vẽ như ô sàn (đúng luật g
 ## D2. Ràng buộc khác của loader
 
 - Ô bắt đầu và ô đích phải là ô đứng được (sàn hoặc đích), không phải ô trống.
-- Hai vị trí tách của công tắc split phải là ô sàn thường (không fragile, không bridge), khác nhau.
+- Hai vị trí trong `cubes` của công tắc split phải là hai ô sàn thường hợp lệ,
+  khác nhau (không fragile, bridge, switch hoặc goal).
+  **Bổ sung đề xuất ngày 26/10/2026, chờ nhóm duyệt:** hai vị trí không được kề cạnh
+  theo bốn hướng; khoảng cách Manhattan phải lớn hơn 1. Loader từ chối cấu hình kề cạnh
+  bằng `LevelValidationError`, nêu trường JSON và cả hai tọa độ. Kề chéo vẫn hợp lệ.
+  Quy tắc này ngăn hai cube tự ghép lại ngay sau khi tách, phù hợp logic ghép của C1/C2.
+  Đây là bổ sung hợp đồng JSON theo đề nghị C2; cần cả nhóm đồng thuận và hai người
+  review theo `CONTRIBUTING.md` §7 trước khi merge, chưa coi là toàn nhóm đã duyệt. 
 - Mọi `target` của công tắc phải trỏ tới một bridge ID **có tồn tại** trong màn.
 - Lỗi loader: dùng một loại exception riêng của loader, thông báo ghi rõ tọa độ và lý do. Chỉ áp dụng cho
   **file JSON sai**; nước đi rơi khỏi bản đồ vẫn **không** dùng exception (xem `CODING_STANDARDS.md`, mục 3).

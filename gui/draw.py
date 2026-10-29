@@ -3,6 +3,7 @@ import pygame
 
 from game.level_loader import Level
 from game.state import State
+from gui.draw_tiles import draw_bridge_tile, draw_fragile_tile, draw_switch, terrain_view
 
 # Re-export các module con để giữ khả năng tương thích 100% với code gọi bên ngoài
 from gui.sky import draw_sky_with_clouds
@@ -34,23 +35,41 @@ def draw_scene(surface: pygame.Surface,
                skew: int,
                anim_state: Optional[Tuple[int, int, int, str, float]] = None,
                fall_state: Optional[tuple] = None,
-               spawn_state: Optional[Tuple[int, int, int, float]] = None) -> None:
-    """Vẽ toàn bộ khung cảnh: Sàn đảo bay và Khối gỗ (tĩnh, lăn animation, rơi xuất phát, vỡ vụn hoặc mờ dần)."""
+               spawn_state: Optional[Tuple[int, int, int, float]] = None,
+               *, bridge_mask: Optional[int] = None) -> None:
+    """Vẽ địa hình trước khối và các hiệu ứng D1.
+
+    Truyền bridge_mask runtime khi state=None trong animation hoặc khi ẩn khối.
+    Nếu không có snapshot, khung cảnh ban đầu dùng mask được khai báo trong level.
+    """
     is_shatter = (fall_state is not None and fall_state[0] == 'shatter')
     is_goal = (fall_state is not None and fall_state[0] == 'goal')
+
+    # Giữ mask runtime cả khi khối được vẽ riêng trong animation (state=None).
+    if bridge_mask is None:
+        bridge_mask = state.bridges if state is not None else level.initial_bridge_mask()
+    terrain = terrain_view(level, bridge_mask)
+    bridge_positions = {bridge.pos for bridge in level.bridges.values()}
 
     # Vẽ từng hàng sàn theo trục Y (từ sau ra trước)
     for r in range(level.rows):
         for c in range(level.cols):
-            ch = level.grid[r][c]
+            ch = terrain.grid[r][c]
             if ch == '.':
                 continue
 
             x, y = grid_to_iso(r, c, tw, th, off, skew)
-            if ch == 'G':
-                _draw_goal_tile(surface, level, r, c, x, y, tw, th, skew)
+            if (r, c) in level.fragile:
+                draw_fragile_tile(surface, terrain, r, c, x, y, tw, th, skew)
+            elif (r, c) in bridge_positions:
+                draw_bridge_tile(surface, terrain, r, c, x, y, tw, th, skew)
+            elif ch == 'G':
+                _draw_goal_tile(surface, terrain, r, c, x, y, tw, th, skew)
             else:
-                _draw_floor_tile(surface, level, r, c, x, y, tw, th, skew)
+                _draw_floor_tile(surface, terrain, r, c, x, y, tw, th, skew)
+            switch = level.switches.get((r, c))
+            if switch is not None:
+                draw_switch(surface, switch.type, x, y, tw, th, skew)
 
     # Hiệu ứng Vỡ Vụn (Shatter): Các mảnh voxel nổ tung văng ra không gian
     if is_shatter:
