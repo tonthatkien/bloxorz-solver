@@ -345,17 +345,19 @@ def run(level_path: str) -> None:
         draw_sky_with_clouds(screen, *WINDOW_SIZE)
         if spawning:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn))
+                       spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn),
+                       bridge_mask=state.bridges)
         elif animating:
             draw_scene(screen, level, None, tw, th, offset, skew,
                        anim_state=(anim_start_r, anim_start_c, anim_start_orient,
-                                   anim_action, anim_progress))
+                                   anim_action, anim_progress), bridge_mask=state.bridges)
         elif falling_goal or falling_void:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       fall_state=fall_tuple)
+                       fall_state=fall_tuple, bridge_mask=state.bridges)
         elif not lost:
             # Thua do rơi khỏi sàn: cả màn đã rớt mất, chỉ còn bầu trời phía sau banner GAME OVER
-            draw_scene(screen, level, state, tw, th, offset, skew)
+            draw_scene(screen, level, state, tw, th, offset, skew,
+                       bridge_mask=state.bridges)
 
         # 2. Vẽ thanh trạng thái (HUD) góc trên-trái
         lvl_lbl = font_hud_lbl.render("LEVEL", True, (138, 90, 50))
