@@ -1,9 +1,10 @@
+import math
 from typing import Optional, Tuple
 import pygame
 
 from game.block import Block
 from game.level_loader import Level
-from game.state import STAND, State, VERT, cells
+from game.state import HORIZ, STAND, State, VERT, cells
 from gui.draw_tiles import draw_bridge_tile, draw_fragile_tile, draw_switch, terrain_view
 
 # Re-export các module con để giữ khả năng tương thích 100% với code gọi bên ngoài
@@ -69,11 +70,13 @@ def draw_scene(surface: pygame.Surface,
     void_ordered = False   # True: vẽ khối xen kẽ với các hàng sàn (hàng phía trước che khối)
     split_row = -1
     void_drawn = False
+    center_r, center_c = 0.0, 0.0
     if is_void:
         _, vr, vc, vorient, vaction, vt = fall_state
-        drop_px = int(surface.get_height() * (vt / VOID_FALL_SECONDS) ** 2)
-        off = (off[0], off[1] + drop_px)
         rolled = Block(vr, vc, vorient).roll(vaction)
+        # Tâm chấn chấn động tại vị trí khối lăn hụt (hoặc vị trí ô sàn dễ vỡ)
+        center_r = rolled.r + (1.0 if rolled.orient == VERT else 0.5)
+        center_c = rolled.c + (1.0 if rolled.orient == HORIZ else 0.5)
         # Dùng terrain (đã tính theo mask cầu) để cầu đang đóng được coi là ô trống, giống luật game.
         void_floor = [0 <= rr < level.rows and 0 <= cc < level.cols and terrain.grid[rr][cc] != '.'
                       for rr, cc in cells(State(rolled.r, rolled.c, rolled.orient))]
@@ -83,7 +86,7 @@ def draw_scene(surface: pygame.Surface,
             void_mode = 'tip'
         # Rơi ra mép sau (bấm U): khối nằm sau lưng map, nếu xen kẽ thì sàn che mất nên nhìn không rõ.
         # Vì vậy trường hợp này vẽ khối đè lên sàn (vẽ sau cùng) để thấy rõ nó tụt xuống.
-        void_ordered = void_mode == 'tip' or (void_mode == 'free' and vaction != 'U')
+        void_ordered = void_mode == 'tip' or void_mode == 'ride' or (void_mode == 'free' and vaction != 'U')
         # Khối rơi tự do phải xen kẽ với sàn: các hàng phía trước (gần camera) che khối khi nó rớt xuống.
         split_row = rolled.r + (2 if rolled.orient == VERT else 1) - 1
 
@@ -94,12 +97,16 @@ def draw_scene(surface: pygame.Surface,
             draw_void_tip_block(surface, rolled.r, rolled.c, rolled.orient,
                                 not void_floor[0], vt, tw, th, off, skew)
         else:
-            draw_animated_block(surface, vr, vc, vorient, vaction, 1.0, tw, th, off, skew)
+            # void_mode == 'ride' (ví dụ đứng lên ô dễ vỡ): rơi thẳng đứng xuyên qua sàn
+            drop = (0.0, 0.0, -0.5 * 38.0 * vt * vt)
+            draw_animated_block(surface, rolled.r, rolled.c, rolled.orient, 'D', 0.0,
+                                tw, th, off, skew, drop=drop, shadow=False)
 
     if is_void and void_ordered and split_row < 0:
         draw_void_block()
         void_drawn = True
 
+    scr_h = surface.get_height()
     # Vẽ từng hàng sàn theo trục Y (từ sau ra trước)
     for r in range(level.rows):
         for c in range(level.cols):
@@ -108,6 +115,24 @@ def draw_scene(surface: pygame.Surface,
                 continue
 
             x, y = grid_to_iso(r, c, tw, th, off, skew)
+            if is_void:
+                # Tính khoảng cách từ ô (r, c) tới tâm chấn
+                dist = math.hypot(r - center_r, c - center_c)
+                # Jitter giả ngẫu nhiên cố định theo tọa độ để mép vỡ so le tự nhiên
+                jitter = (((r * 37 + c * 19) % 11) / 11.0 - 0.5) * 0.08
+                delay = max(0.0, dist * 0.045 + jitter)
+                t_eff = vt - delay
+                if t_eff > 0:
+                    # Ô sàn rơi gia tốc tự do: sau ~0.45s rơi khỏi màn hình
+                    tile_drop_y = int(scr_h * (t_eff / 0.45) ** 2)
+                    y += tile_drop_y
+                    if dist > 0.1:
+                        # Tản nhẹ sang hai bên theo hướng lan truyền sóng
+                        drift_x = (t_eff / 0.45) * 14.0
+                        x += int(((c - center_c) / dist) * drift_x)
+                    if y > scr_h + 120:
+                        continue
+
             if (r, c) in level.fragile:
                 draw_fragile_tile(surface, terrain, r, c, x, y, tw, th, skew)
             elif (r, c) in bridge_positions:
@@ -128,20 +153,15 @@ def draw_scene(surface: pygame.Surface,
         _, s_pieces, s_t, s_alpha = fall_state
         draw_shatter_block(surface, s_pieces, s_t, s_alpha, tw, th, off, skew)
 
-    # 3. Rơi vào hố Goal: khối trượt thẳng xuống hố, bị mép hố che dần
+    # 3. Rơi vào hố Goal: Khối chìm dần xuống hố và tan biến hoàn hảo
     if is_goal:
         _, gr, gc, g_orient, g_alpha = fall_state
-        gt = 1.0 - max(0.0, min(255, g_alpha)) / 255.0     # tiến độ 0 -> 1 (app.py truyền alpha 255 -> 0)
+        gt = 1.0 - max(0.0, min(255, g_alpha)) / 255.0     # tiến độ 0 -> 1
         lz = 2 if g_orient == STAND else 1
-        ly = 2 if g_orient == VERT else 1
-        sink = (lz + 1.0) * gt * gt                        # chìm sâu hơn chiều cao khối để biến mất hẳn
-        y_front = off[1] + (gr + ly) * th                  # mép trước của hố: phần khối thấp hơn mép bị che
-        old_clip = surface.get_clip()
-        surface.set_clip(pygame.Rect(0, 0, surface.get_width(), max(0, y_front)))
-        draw_animated_block(surface, gr, gc, g_orient, 'D', 0.0, tw, th, off, skew,
-                            drop=(0.0, 0.0, -sink), shadow=False)
-        surface.set_clip(old_clip)
-
+        sink = (lz + 0.1) * (gt ** 1.3)
+        h = max(0.0, lz - sink)
+        eff_alpha = int(255 * min(1.0, h / 0.25))
+        draw_goal_dissolve_block(surface, gr, gc, g_orient, eff_alpha, tw, th, off, skew, sink=sink)
     # Các trường hợp còn lại (khối vẽ sau cùng, khối rơi 'free'/'tip' đã vẽ xen kẽ ở trên)
     if is_void and not void_drawn:
         draw_void_block()

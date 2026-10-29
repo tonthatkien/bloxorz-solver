@@ -12,15 +12,22 @@ def draw_goal_dissolve_block(surface: pygame.Surface,
                               r: int, c: int, orient: int,
                               alpha: int,
                               tw: int, th: int,
-                              off: Tuple[int, int], skew: int) -> None:
-    """Vẽ khối đứng trên ô Goal"""
+                              off: Tuple[int, int], skew: int,
+                              sink: float = 0.0) -> None:
+    """Vẽ khối chìm dần vào ô Goal và tan biến.
+    Độ cao phần khối trên mặt sàn giảm dần (h = max(0, lz - sink)),
+    đáy khối luôn tựa tại mặt sàn z = 0 để không bị lấn/cắt vào các ô sàn lân cận.
+    """
     cube_h = 60
     lx = 1 if orient != HORIZ else 2
     ly = 1 if orient != VERT else 2
     lz = 2 if orient == STAND else 1
+    h = max(0.0, lz - sink)
+    if h <= 0.001 or alpha <= 0:
+        return
 
     x0, y0, z0 = float(c), float(r), 0.0
-    x1, y1, z1 = x0 + lx, y0 + ly, float(lz)
+    x1, y1, z1 = x0 + lx, y0 + ly, float(h)
     verts = [
         (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
         (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
@@ -226,7 +233,7 @@ def draw_shatter_block(surface: pygame.Surface,
         surface.blit(target_surf, (0, 0))
 
 
-VOID_FALL_GRAVITY = 10.0
+VOID_FALL_GRAVITY = 38.0
 
 
 def draw_void_fall_block(surface: pygame.Surface,
@@ -241,7 +248,7 @@ def draw_void_fall_block(surface: pygame.Surface,
     dx = {'L': -1.0, 'R': 1.0}.get(action, 0.0)
     dy = {'U': -1.0, 'D': 1.0}.get(action, 0.0)
     drift = 0.0 if action == 'U' else 0.7 * t                              # trượt tiếp ra phía ngoài mép
-    extra = min(1.5, 1.8 * t)                    # lật thêm quanh mép, rủ xuống
+    extra = min(3.0, 3.5 * t)                    # lật thêm quanh mép, rủ xuống
     drop = (dx * drift, dy * drift, -0.5 * VOID_FALL_GRAVITY * t * t)
     draw_animated_block(surface, r, c, orient, action, 1.0, tw, th, off, skew,
                         extra_angle=extra, drop=drop, shadow=False)
@@ -259,8 +266,8 @@ def draw_void_tip_block(surface: pygame.Surface,
     ô đầu (r, c); ngược lại ô hụt là ô thứ hai.
     """
     sign = -1.0 if void_first else 1.0
-    tilt = min(1.45, 2.6 * t)
-    t2 = max(0.0, t - 0.2)                       # chúi xong rồi mới trượt và rơi
+    tilt = min(1.6, 3.0 * t)
+    t2 = max(0.0, t - 0.15)                       # chúi xong rồi mới trượt và rơi
     if orient == HORIZ:
         pivot = (c + 1.0, float(r), 'Y')
         slide = (sign * 0.9 * t2, 0.0)
