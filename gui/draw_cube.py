@@ -2,10 +2,10 @@
 
 Quy ước:
 - Khi tách, state.split = ((r1, c1), (r2, c2)).
-- split[0]: Cube đang điều khiển (Active) -> Gỗ Vàng Sáng (Warm Golden Wood),
-  có tam giác ngược nhấp nhô chỉ thị phía trên kèm bóng đổ động trên mặt đỉnh.
-- split[1]: Cube đứng yên (Inactive) -> Đá Xám Tro (Slate Stone),
-  thể hiện trạng thái ngủ / khóa di chuyển.
+- Phong cách 3 (Minimalist Pure): Thuần khiết như Bloxorz nguyên bản.
+- split[0]: Cube đang điều khiển (Active) -> Gỗ Vàng Sáng (Warm Golden Wood).
+- split[1]: Cube đứng yên (Inactive) -> Đá Xám Tro (Slate Stone) ngủ đông.
+- Nhận diện 100% bằng chất liệu trực quan, không có mũi tên/icon lơ lửng che tầm nhìn.
 - Kích thước mỗi cube đơn là 1x1x1 (lx=1, ly=1, lz=1).
 """
 import math
@@ -17,9 +17,14 @@ from gui.render_board import _poly_aa
 
 CUBE_HEIGHT: int = 60
 
-# Màu sắc chỉ thị tam giác ngược (Indicator)
-INDICATOR_FILL: Tuple[int, int, int] = (225, 29, 72)       # Đỏ san hô (Crimson Red)
-INDICATOR_EDGE: Tuple[int, int, int] = (159, 18, 57)       # Đỏ ruby đậm viền sắc nét
+# Màu sắc chỉ thị Kim Cương 3D (Indicator)
+INDICATOR_LIGHT: Tuple[int, int, int] = (255, 255, 255)       # Trắng ngọc (Pure White)
+INDICATOR_SHADOW: Tuple[int, int, int] = (203, 213, 225)      # Bạc tro (Silver Slate 300)
+INDICATOR_EDGE: Tuple[int, int, int] = (15, 23, 42)           # Slate 900 viền sắc nét
+INDICATOR_RIDGE: Tuple[int, int, int] = (148, 163, 184)       # Sống giữa Slate 400
+
+# Tương thích ngược biến cũ nếu có module tham chiếu
+INDICATOR_FILL: Tuple[int, int, int] = INDICATOR_LIGHT
 
 
 def _wood_face_color(normal: Tuple[float, float, float]) -> Tuple[int, int, int]:
@@ -103,29 +108,10 @@ def draw_active_indicator(surface: pygame.Surface,
                           off: Tuple[int, int], skew: int,
                           now_ms: int,
                           fill_color: Optional[Tuple[int, int, int]] = None,
-                          edge_color: Optional[Tuple[int, int, int]] = None) -> None:
-    """Vẽ tam giác ngược nhấp nhô chỉ thị phía trên cube active."""
-    # 1. Dao động điều hòa lên xuống
-    oscillation = math.sin(now_ms * (2.0 * math.pi / 850.0))
-    float_y = 5.0 * oscillation  # dao động trong khoảng [-5, +5] pixel
-
-    # Tọa độ tâm mặt trên của cube (z = 1.0)
-    top_center_x = off[0] + (c + 0.5) * tw + (r + 0.5) * skew
-    top_center_y = off[1] + (r + 0.5) * th - 1.0 * CUBE_HEIGHT
-
-    # 2. Tam giác ngược lơ lửng
-    tip_y = top_center_y - 12 + float_y
-    tri_w = 9
-    tri_h = 12
-
-    p_tip = (int(round(top_center_x)), int(round(tip_y)))
-    p_left = (int(round(top_center_x - tri_w)), int(round(tip_y - tri_h)))
-    p_right = (int(round(top_center_x + tri_w)), int(round(tip_y - tri_h)))
-    points = [p_tip, p_left, p_right]
-
-    fill = fill_color if fill_color is not None else INDICATOR_FILL
-    edge = edge_color if edge_color is not None else INDICATOR_EDGE
-    _poly_aa(surface, fill, points, edge_color=edge)
+                          edge_color: Optional[Tuple[int, int, int]] = None,
+                          shadow_color: Optional[Tuple[int, int, int]] = None) -> None:
+    """Theo Phong cách 3 (Minimalist Pure): Không vẽ bất kỳ icon lơ lửng nào."""
+    pass
 
 
 def _draw_cube_geometry(surface: pygame.Surface,
@@ -299,14 +285,6 @@ def draw_split_cubes(surface: pygame.Surface,
             draw_single_cube(
                 surface, c_active[0], c_active[1], True, tw, th, off, skew, offset_xy=off_act
             )
-            # Chỉ vẽ tam giác chỉ thị khi không đang trong animation lăn hoặc hút
-            if merge_progress is None:
-                fill_c = indicator_colors[0] if indicator_colors else None
-                edge_c = indicator_colors[1] if indicator_colors else None
-                draw_active_indicator(
-                    surface, c_active[0], c_active[1], tw, th, off, skew, now_ms,
-                    fill_color=fill_c, edge_color=edge_c
-                )
 
     def render_inactive() -> None:
         draw_single_cube(

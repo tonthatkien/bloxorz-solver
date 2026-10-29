@@ -6,8 +6,8 @@ Chạy trực tiếp:
 Tính năng trải nghiệm:
 - Hiển thị 2 cube tách rời: Active (Gỗ Vàng Sáng) vs Inactive (Đá Xám Tro).
 - Tam giác ngược nhấp nhô lơ lửng trên đỉnh cube active.
+- Phong cách 3 (Minimalist Pure): Thuần khiết như Bloxorz nguyên bản.
 - Phím SPACE: Đổi tức thì cube active (con đá thức tỉnh thành gỗ, con gỗ hóa đá).
-- Phím C: ĐỔI MÀU TRỰC TIẾP tam giác ngược giữa 7 bảng màu (Đỏ, Trắng, Tím, Cam...).
 - Phím Mũi Tên: Lăn cube active 90 độ mượt mà.
 - Di chuyển 2 cube lại sát cạnh nhau: Tự động hút nam châm và ghép lại thành khối 1x1x2.
 - Phím R: Đặt lại trạng thái tách 2 cube để thử lại.
@@ -57,16 +57,7 @@ _DIR_OFFSETS = {
     'R': (0, 1),
 }
 
-# Các bảng màu chọn lọc để test trực tiếp bằng phím C
-COLOR_PALETTES = [
-    ("Đỏ San Hô (Crimson)",        (225, 29, 72),  (159, 18, 57)),
-    ("Trắng Ngọc Trai (Pure White)",(255, 255, 255),(30, 41, 59)),
-    ("Tím Thạch Anh (Amethyst)",    (168, 85, 247), (88, 28, 135)),
-    ("Cam Đào (Coral)",             (251, 146, 60), (124, 45, 18)),
-    ("Xanh Lam Ngọc (Cyan)",        (56, 189, 248), (12, 74, 110)),
-    ("Vàng Hổ Phách (Amber)",       (245, 158, 11), (120, 53, 15)),
-    ("Xanh Lục Bảo (Emerald)",      (34, 197, 94),  (20, 83, 45)),
-]
+
 
 
 def _create_demo_level() -> Level:
@@ -111,7 +102,6 @@ def run_demo() -> None:
     state = State(r=0, c=0, orient=STAND, bridges=0, split=initial_split)
 
     move_count = 0
-    palette_idx = 0
     animating = False
     anim_start_r = 0
     anim_start_c = 0
@@ -173,10 +163,6 @@ def run_demo() -> None:
                     animating, merging = False, False
                     move_count = 0
 
-                # Bấm phím C: Đổi bảng màu tam giác ngược trực tiếp
-                elif event.key == pygame.K_c:
-                    palette_idx = (palette_idx + 1) % len(COLOR_PALETTES)
-
                 # Bấm phím SPACE: Hoán đổi tức thì quyền điều khiển
                 elif event.key == pygame.K_SPACE:
                     if state.split is not None and not animating and not merging:
@@ -229,9 +215,6 @@ def run_demo() -> None:
             else:
                 merge_progress = _ease(raw_m)
 
-        # Lấy màu tam giác ngược hiện tại
-        pal_name, pal_fill, pal_edge = COLOR_PALETTES[palette_idx]
-
         # 1. Vẽ bầu trời và sàn đảo bay
         draw_sky_with_clouds(screen, *WINDOW_SIZE)
         for r in range(level.rows):
@@ -249,8 +232,7 @@ def run_demo() -> None:
         if merging and merging_split is not None:
             draw_split_cubes(
                 screen, merging_split, tw, th, offset, skew,
-                merge_progress=merge_progress,
-                indicator_colors=(pal_fill, pal_edge)
+                merge_progress=merge_progress
             )
         elif state.split is not None:
             anim_info = (
@@ -258,8 +240,7 @@ def run_demo() -> None:
                 if animating else None
             )
             draw_split_cubes(
-                screen, state.split, tw, th, offset, skew, anim_info=anim_info,
-                indicator_colors=(pal_fill, pal_edge)
+                screen, state.split, tw, th, offset, skew, anim_info=anim_info
             )
         else:
             draw_block(screen, state, tw, th, offset, skew)
@@ -281,21 +262,24 @@ def run_demo() -> None:
         screen.blit(mov_lbl, (242, 31))
         screen.blit(mov_val, (300, 27))
 
-        # Pill Color Switcher (Hiển thị màu đang chọn)
-        col_lbl = font_sys.render("COLOR [C]", True, (138, 90, 50))
-        col_val = font_sys.render(f"{pal_name}", True, (20, 20, 20))
-        pill_w = col_val.get_width() + 130
+        # Pill Status (Hiển thị quy ước màu tối giản)
+        st_lbl = font_sys.render("ACTIVE CUBE", True, (138, 90, 50))
+        if state.split is not None:
+            st_val_str = "Wood (Golden)"
+            st_val_col = (180, 83, 9)
+        else:
+            st_val_str = "Merged (1x1x2)"
+            st_val_col = (22, 101, 52)
+        st_val = font_val.render(st_val_str, True, st_val_col)
+        pill_w = st_val.get_width() + 145
         draw_aa_round_rect(screen, (368, 20, pill_w, 38), (254, 250, 235, 235),
                            border_radius=14, border_color=(180, 130, 85, 180), border_width=2)
-        screen.blit(col_lbl, (382, 31))
-        # Chấm tròn hiển thị màu
-        pygame.draw.circle(screen, pal_fill, (382 + col_lbl.get_width() + 14, 39), 8)
-        pygame.draw.circle(screen, pal_edge, (382 + col_lbl.get_width() + 14, 39), 8, 1)
-        screen.blit(col_val, (382 + col_lbl.get_width() + 28, 31))
+        screen.blit(st_lbl, (382, 31))
+        screen.blit(st_val, (490, 27))
 
         # 4. Vẽ thanh Hint điều khiển ở đáy màn hình
         if state.split is not None:
-            hint_str = "Arrows: Move   •   SPACE: Switch Active Cube   •   C: Switch Color   •   R: Reset   •   ESC: Exit"
+            hint_str = "Arrows: Move Active Cube   •   SPACE: Switch Active Cube (Wood <-> Stone)   •   R: Reset   •   ESC: Exit"
         else:
             hint_str = "Cubes Merged!   •   Arrows: Move   •   R: Reset Cubes   •   ESC: Exit"
 
