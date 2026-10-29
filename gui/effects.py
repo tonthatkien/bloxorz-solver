@@ -5,7 +5,7 @@ import pygame
 
 from game.state import STAND, HORIZ, VERT
 from gui.render_board import _poly_aa
-from gui.render_block import _face_color
+from gui.render_block import _face_color, draw_animated_block
 
 
 def draw_goal_dissolve_block(surface: pygame.Surface,
@@ -224,3 +224,50 @@ def draw_shatter_block(surface: pygame.Surface,
     if alpha < 255:
         target_surf.set_alpha(max(0, min(255, alpha)))
         surface.blit(target_surf, (0, 0))
+
+
+VOID_FALL_GRAVITY = 10.0
+
+
+def draw_void_fall_block(surface: pygame.Surface,
+                         r: int, c: int, orient: int, action: str,
+                         t: float,
+                         tw: int, th: int,
+                         off: Tuple[int, int], skew: int) -> None:
+    """Khối đã lăn hụt hoàn toàn ra ngoài sàn: lật tiếp quanh mép, trượt ra ngoài và rơi nhanh hơn sàn.
+
+    (r, c, orient, action) là tư thế lúc bắt đầu lăn; t là số giây kể từ lúc lăn xong 90 độ.
+    """
+    dx = {'L': -1.0, 'R': 1.0}.get(action, 0.0)
+    dy = {'U': -1.0, 'D': 1.0}.get(action, 0.0)
+    drift = 0.0 if action == 'U' else 0.7 * t                              # trượt tiếp ra phía ngoài mép
+    extra = min(1.5, 1.8 * t)                    # lật thêm quanh mép, rủ xuống
+    drop = (dx * drift, dy * drift, -0.5 * VOID_FALL_GRAVITY * t * t)
+    draw_animated_block(surface, r, c, orient, action, 1.0, tw, th, off, skew,
+                        extra_angle=extra, drop=drop, shadow=False)
+
+
+def draw_void_tip_block(surface: pygame.Surface,
+                        r: int, c: int, orient: int, void_first: bool,
+                        t: float,
+                        tw: int, th: int,
+                        off: Tuple[int, int], skew: int) -> None:
+    """Khối nằm vắt ngang mép: một ô gác sàn, một ô treo trên hố. Khối chúi xuống phía hố
+    (xoay quanh mép sàn, nửa gác sàn nhấc lên nên không xuyên sàn) rồi trượt ra và rơi.
+
+    (r, c, orient) là tư thế khối sau khi lăn hụt (HORIZ hoặc VERT). void_first=True nếu ô hụt là
+    ô đầu (r, c); ngược lại ô hụt là ô thứ hai.
+    """
+    sign = -1.0 if void_first else 1.0
+    tilt = min(1.45, 2.6 * t)
+    t2 = max(0.0, t - 0.2)                       # chúi xong rồi mới trượt và rơi
+    if orient == HORIZ:
+        pivot = (c + 1.0, float(r), 'Y')
+        slide = (sign * 0.9 * t2, 0.0)
+    else:
+        pivot = (float(c), r + 1.0, 'X')
+        slide = (0.0, sign * 0.9 * t2)
+    drop = (slide[0], slide[1], -0.5 * VOID_FALL_GRAVITY * t2 * t2)
+    draw_animated_block(surface, r, c, orient, 'D', 0.0, tw, th, off, skew,
+                        drop=drop, shadow=False,
+                        pivot_override=(pivot[0], pivot[1], pivot[2], sign * tilt))

@@ -1,5 +1,5 @@
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 import pygame
 
 from game.state import State, STAND, HORIZ, VERT
@@ -43,7 +43,15 @@ def draw_animated_block(surface: pygame.Surface,
                         r: int, c: int, orient: int,
                         action: str, progress: float,
                         tw: int, th: int,
-                        off: Tuple[int, int], skew: int) -> None:
+                        off: Tuple[int, int], skew: int,
+                        extra_angle: float = 0.0,
+                        drop: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                        shadow: bool = True,
+                        pivot_override: Optional[Tuple[float, float, str, float]] = None) -> None:
+    # extra_angle: góc lật thêm (rad) sau khi đã lăn 90 độ; drop: độ dời (x, y, z) của cả khối;
+    # shadow=False: bỏ bóng tiếp xúc. pivot_override=(px, py, axis, angle): xoay quanh một trục tùy ý
+    # (px là cột, py là hàng, axis 'X' hoặc 'Y') thay vì mép khối. Dùng cho hiệu ứng rơi khỏi sàn,
+    # mặc định giữ nguyên hành vi cũ.
     cube_h = 60
 
     lx = 1 if orient != HORIZ else 2
@@ -59,7 +67,11 @@ def draw_animated_block(surface: pygame.Surface,
     else:  # 'R'
         pivot, axis, sign = (c + lx, r), 'Y', 1
 
-    angle = sign * (math.pi / 2.0) * progress
+    angle = sign * ((math.pi / 2.0) * progress + extra_angle)
+    if pivot_override is not None:
+        pivot = (pivot_override[0], pivot_override[1])
+        axis = pivot_override[2]
+        angle = pivot_override[3]
 
     x0, y0, z0 = float(c), float(r), 0.0
     x1, y1, z1 = x0 + lx, y0 + ly, float(lz)
@@ -97,6 +109,8 @@ def draw_animated_block(surface: pygame.Surface,
             return (vx * ca + vz * sa, vy, -vx * sa + vz * ca)
 
     rot_verts = [rot_p(v) for v in verts]
+    if drop != (0.0, 0.0, 0.0):
+        rot_verts = [(v[0] + drop[0], v[1] + drop[1], v[2] + drop[2]) for v in rot_verts]
 
     def proj(p):
         return (off[0] + p[0] * tw + p[1] * skew,
@@ -105,16 +119,17 @@ def draw_animated_block(surface: pygame.Surface,
     proj_verts = [proj(v) for v in rot_verts]
 
     # Bóng tiếp xúc dưới khối
-    shadow_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-    s_alpha = max(35, int(130 * (1.0 - 0.45 * math.sin(progress * math.pi))))
-    bot_shadow = [
-        (int(off[0] + v[0] * tw + v[1] * skew),
-         int(off[1] + v[1] * th))
-        for v in (rot_verts[0], rot_verts[1], rot_verts[2], rot_verts[3])
-    ]
-    pygame.draw.polygon(shadow_surf, (25, 45, 20, s_alpha // 2), [(p[0] + 4, p[1] + 3) for p in bot_shadow])
-    pygame.draw.polygon(shadow_surf, (20, 35, 15, s_alpha), bot_shadow)
-    surface.blit(shadow_surf, (0, 0))
+    if shadow:
+        shadow_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        s_alpha = max(35, int(130 * (1.0 - 0.45 * math.sin(progress * math.pi))))
+        bot_shadow = [
+            (int(off[0] + v[0] * tw + v[1] * skew),
+             int(off[1] + v[1] * th))
+            for v in (rot_verts[0], rot_verts[1], rot_verts[2], rot_verts[3])
+        ]
+        pygame.draw.polygon(shadow_surf, (25, 45, 20, s_alpha // 2), [(p[0] + 4, p[1] + 3) for p in bot_shadow])
+        pygame.draw.polygon(shadow_surf, (20, 35, 15, s_alpha), bot_shadow)
+        surface.blit(shadow_surf, (0, 0))
 
     # Loại bỏ mặt sau và sắp xếp theo chiều sâu
     v_cam = (-skew / tw, 1.0, th / cube_h)
