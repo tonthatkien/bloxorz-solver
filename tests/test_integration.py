@@ -78,6 +78,25 @@ class TestIntegratedTransitions(unittest.TestCase):
         swapped = successors[-1][1]
         self.assertEqual(self.advance(game, swapped, "S"), old)
 
+    def test_adjacent_split_has_no_successors(self) -> None:
+        game = Game(open_level())
+        for positions in (((2, 2), (2, 3)), ((2, 3), (2, 2)),
+                          ((2, 2), (3, 2)), ((3, 2), (2, 2))):
+            with self.subTest(positions=positions):
+                self.assertEqual(game.get_successors(State(split=positions)), [])
+
+    def test_split_switch_can_place_cube_on_fragile(self) -> None:
+        level = open_level(switches=[
+            {"type": "split", "pos": [2, 1], "cubes": [[2, 2], [5, 6]]}])
+        # Runtime-only Level fixture: the JSON contract forbids fragile split targets.
+        level.fragile.add((2, 2))
+        game = Game(level)
+        # Roll left from a lying block to stand on the switch at (2, 1).
+        split = self.advance(game, State(2, 2, HORIZ), "L")
+        self.assertEqual(split, State(split=((2, 2), (5, 6))))
+        self.assertIn((2, 2), game.tile_rules.fragile)
+        self.assertTrue(game.tile_rules.is_supported(split))
+
     def test_all_four_merge_directions_normalize_and_resume_block_rolls(self) -> None:
         game = Game(open_level())
         cases = [(State(split=((2, 2), (2, 4))), "R", State(2, 3, HORIZ)),
