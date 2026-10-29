@@ -1,18 +1,22 @@
-"""GUI chính của Bloxorz"""
-from typing import Optional, Tuple
+"""GUI chính của Bloxorz (Task D1/D2)."""
 import math
+from typing import Optional, Tuple
 import pygame
 
 from game.block import Block
-from game.board import Board
 from game.game import Game
 from game.level_loader import Level, load_level
-from game.state import State, STAND
+from game.state import STAND, State
 from gui.draw import (
     calculate_iso_layout,
     draw_scene,
     draw_sky_with_clouds,
     generate_shatter_pieces,
+)
+from gui.widgets import (
+    Button,
+    LevelSelectorModal,
+    draw_aa_round_rect,
 )
 
 # Cấu hình cửa sổ và màu sắc
@@ -28,83 +32,58 @@ _KEY_MAP = {
 }
 
 
+def _draw_hud_pill(surf: pygame.Surface, x: int, y: int,
+                   lbl_s: pygame.Surface, val_s: pygame.Surface,
+                   bg_col=(254, 250, 235, 235),
+                   border_col=(180, 130, 85, 180)) -> int:
+    """Vẽ viên thuốc (pill) hiển thị thông số trên thanh trạng thái."""
+    pad_x, gap, h = 16, 8, 38
+    w = pad_x * 2 + lbl_s.get_width() + gap + val_s.get_width()
+    draw_aa_round_rect(surf, (x, y, w, h), bg_col, border_radius=14,
+                       border_color=border_col, border_width=2)
+
+    ly = y + (h - lbl_s.get_height()) // 2
+    vy = y + (h - val_s.get_height()) // 2
+    surf.blit(lbl_s, (x + pad_x, ly))
+    surf.blit(val_s, (x + pad_x + lbl_s.get_width() + gap, vy))
+    return w
+
+
 def run(level_path: str) -> None:
+    """Khởi chạy vòng lặp giao diện Pygame cho game Bloxorz."""
     pygame.init()
     pygame.display.set_caption('Bloxorz')
     screen = pygame.display.set_mode(WINDOW_SIZE)
     clock  = pygame.time.Clock()
 
-    # Phông chữ và Giao diện
+    # Phông chữ giao diện
     sys_fonts = pygame.font.get_fonts()
-    font_family = 'trebuchetms' if 'trebuchetms' in sys_fonts else ('verdana' if 'verdana' in sys_fonts else 'arial')
-    font_title   = pygame.font.SysFont(font_family, 48, bold=True)
+    font_family = ('trebuchetms' if 'trebuchetms' in sys_fonts
+                   else ('verdana' if 'verdana' in sys_fonts else 'arial'))
+    font_title   = pygame.font.SysFont(font_family, 44, bold=True)
     font_hud_lbl = pygame.font.SysFont(font_family, 15, bold=True)
     font_hud_val = pygame.font.SysFont(font_family, 20, bold=True)
+    font_btn     = pygame.font.SysFont(font_family, 16, bold=True)
     font_sub     = pygame.font.SysFont(font_family, 18)
     font_hint    = pygame.font.SysFont(font_family, 15)
 
-    def draw_aa_round_rect(surface: pygame.Surface,
-                           rect: Tuple[int, int, int, int],
-                           color: Tuple[int, ...],
-                           border_radius: int = 0,
-                           border_color: Optional[Tuple[int, ...]] = None,
-                           border_width: int = 1) -> None:
-        x, y, w, h = rect
-        if w <= 0 or h <= 0:
-            return
-        scale = 2
-        sw, sh = w * scale, h * scale
-        sr = border_radius * scale
-        sbw = border_width * scale
-        sub = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        pygame.draw.rect(sub, color, (0, 0, sw, sh), border_radius=sr)
-        if border_color and border_width > 0:
-            pygame.draw.rect(sub, border_color, (0, 0, sw, sh), width=sbw, border_radius=sr)
-        smooth = pygame.transform.smoothscale(sub, (w, h))
-        surface.blit(smooth, (x, y))
-
-    def _draw_hud_pill(surf: pygame.Surface, x: int, y: int,
-                       lbl_s: pygame.Surface, val_s: pygame.Surface,
-                       bg_col=(254, 250, 235, 235),
-                       border_col=(180, 130, 85, 180)) -> int:
-        pad_x, gap, h = 16, 8, 38
-        w = pad_x * 2 + lbl_s.get_width() + gap + val_s.get_width()
-        draw_aa_round_rect(surf, (x, y, w, h), bg_col, border_radius=14, border_color=border_col, border_width=2)
-
-        ly = y + (h - lbl_s.get_height()) // 2
-        vy = y + (h - val_s.get_height()) // 2
-        surf.blit(lbl_s, (x + pad_x, ly))
-        surf.blit(val_s, (x + pad_x + lbl_s.get_width() + gap, vy))
-        return w
-
-    level  = load_level(level_path)
-    game   = Game(level)
-    board  = Board.from_strings(level.grid)
+    # Quản lý màn chơi và Game Core
+    current_level_path = level_path
+    level: Level = load_level(current_level_path)
+    game: Game   = Game(level)
     tw, th, offset, skew = calculate_iso_layout(level.rows, level.cols, *WINDOW_SIZE)
 
-    def _step(state: State, action: str) -> Tuple[Optional[State], bool]:
-        """Trả về (state mới, có rơi không). TODO [D2]: đổi sang game.get_successors khi A2 xong."""
-        if state.split is not None:
-            return None, False
-        b = Block(state.r, state.c, state.orient).roll(action)
-        return State(b.r, b.c, b.orient, state.bridges, None), not board.is_valid(b)
-
-    def _is_goal(state: State) -> bool:
-        return state.split is None and board.is_win(Block(state.r, state.c, state.orient))
-
-    def reset() -> State:
-        return game.initial_state()
-
-    state: State = reset()
+    state: State = game.initial_state()
     won: bool    = False
     lost: bool   = False
     move_count: int = 0
 
-    # Cấu hình và trạng thái Animation toán học
-    ANIM_DURATION_MS = 140      # Lăn 140ms
-    FALL_GOAL_DURATION_MS = 600 # Khối mờ dần trên ô Goal 600ms
-    FALL_VOID_DURATION_MS = 600 # Khối vỡ vụn thành các voxel 3D tản mác vào không gian 600ms
-    SPAWN_DURATION_MS = 460     # Khối từ trên trời rơi xuống và nảy nhẹ tiếp đất 460ms
+    # Cấu hình thời gian và thông số Animation
+    ANIM_DURATION_MS = 140
+    FALL_GOAL_DURATION_MS = 600
+    FALL_VOID_DURATION_MS = 600
+    SPAWN_DURATION_MS = 460
+    SPAWN_HEIGHT = 8.5
 
     def _ease(t: float) -> float:
         return t * t * (3.0 - 2.0 * t)
@@ -119,47 +98,136 @@ def run(level_path: str) -> None:
     anim_start_time = 0
     buffered_action: Optional[str] = None
 
-    # Trạng thái rơi
     falling_goal = False
     falling_void = False
     fall_start_time = 0
     fall_r, fall_c, fall_orient = 0.0, 0.0, STAND
     fall_shatter_pieces: list = []
 
-    # Trạng thái Spawn Drop (rơi từ trên trời khi khởi đầu và restart)
     spawning = True
     spawn_start_time = pygame.time.get_ticks()
     spawn_r = state.r
     spawn_c = state.c
     spawn_orient = state.orient
-    z_spawn = 8.5
+    z_spawn = SPAWN_HEIGHT
+
+    def _step(cur_state: State, action: str) -> Tuple[Optional[State], bool]:
+        """Thực hiện một nước đi bằng cách truy vấn Game Core (game.get_successors).
+
+        Trả về (state_tiếp_theo, có_rơi_không).
+        - Nếu action nằm trong successors: nước đi hợp lệ -> (next_state, False).
+        - Nếu action không nằm trong successors: nước đi rơi (thua) -> (phantom_state, True).
+        """
+        if cur_state.split is not None:
+            return None, False
+
+        # Kiểm tra tính hợp lệ qua Game Core
+        for act, next_st, _ in game.get_successors(cur_state):
+            if act == action:
+                return next_st, False
+
+        # Không nằm trong successors -> khối lăn ra ngoài sàn rơi vực
+        rolled = Block(cur_state.r, cur_state.c, cur_state.orient).roll(action)
+        phantom_state = State(rolled.r, rolled.c, rolled.orient, cur_state.bridges, None)
+        return phantom_state, True
+
+    def load_level_and_reset(path: str) -> None:
+        """Nạp màn chơi mới hoặc khởi động lại và reset toàn bộ trạng thái animation."""
+        nonlocal level, game, current_level_path, tw, th, offset, skew
+        nonlocal state, won, lost, move_count, animating
+        nonlocal falling_goal, falling_void, buffered_action
+        nonlocal fall_shatter_pieces, spawning, spawn_start_time
+        nonlocal spawn_r, spawn_c, spawn_orient, z_spawn
+
+        current_level_path = path
+        level = load_level(current_level_path)
+        game = Game(level)
+        tw, th, offset, skew = calculate_iso_layout(level.rows, level.cols, *WINDOW_SIZE)
+
+        state = game.initial_state()
+        won, lost, move_count = False, False, 0
+        animating = False
+        falling_goal = False
+        falling_void = False
+        buffered_action = None
+        fall_shatter_pieces = []
+        spawning = True
+        spawn_start_time = pygame.time.get_ticks()
+        spawn_r = state.r
+        spawn_c = state.c
+        spawn_orient = state.orient
+        z_spawn = SPAWN_HEIGHT
+
+    # Nút bấm HUD góc trên-phải
+    btn_restart  = Button((WINDOW_SIZE[0] - 24 - 120 - 12 - 110, 20, 110, 38),
+                          "Restart", font_btn, border_radius=14)
+    btn_new_game = Button((WINDOW_SIZE[0] - 24 - 120, 20, 120, 38),
+                          "New Game", font_btn, border_radius=14)
+
+    # Nút bấm trên Banner Thắng / Thua
+    banner_w, banner_h = 460, 220
+    b_px = (WINDOW_SIZE[0] - banner_w) // 2
+    b_py = (WINDOW_SIZE[1] - banner_h) // 2
+    btn_win_restart   = Button((b_px + 35, b_py + 145, 180, 44), "Play Again", font_btn,
+                               bg_color=(235, 252, 238), hover_color=(215, 245, 220),
+                               border_color=(34, 197, 94), text_color=(20, 120, 50))
+    btn_win_new_game  = Button((b_px + 245, b_py + 145, 180, 44), "New Game", font_btn,
+                               border_color=(34, 197, 94), text_color=(20, 120, 50))
+    btn_loss_restart  = Button((b_px + 35, b_py + 145, 180, 44), "Try Again", font_btn,
+                               bg_color=(255, 240, 238), hover_color=(255, 225, 220),
+                               border_color=(220, 75, 60), text_color=(185, 28, 28))
+    btn_loss_new_game = Button((b_px + 245, b_py + 145, 180, 44), "New Game", font_btn,
+                               border_color=(220, 75, 60), text_color=(185, 28, 28))
+
+    # Hộp thoại chọn màn
+    level_modal = LevelSelectorModal(WINDOW_SIZE, font_hud_val, font_btn, font_sub)
+    level_pill_rect = pygame.Rect(24, 20, 160, 38)
 
     while True:
-        can_control = not won and not lost and not falling_goal and not falling_void and not spawning
+        can_control = (not won and not lost and not falling_goal
+                       and not falling_void and not spawning and not level_modal.is_open)
+        mouse_pos = pygame.mouse.get_pos()
 
+        # Cập nhật con trỏ chuột tương tác (Hand Pointer khi hover nút)
+        if level_modal.is_open:
+            is_hovering = level_modal.is_any_hovered(mouse_pos)
+        else:
+            is_hovering = (
+                level_pill_rect.collidepoint(mouse_pos) or
+                btn_restart.is_hovered(mouse_pos) or
+                btn_new_game.is_hovered(mouse_pos) or
+                (won and (btn_win_restart.is_hovered(mouse_pos) or
+                          btn_win_new_game.is_hovered(mouse_pos))) or
+                (lost and (btn_loss_restart.is_hovered(mouse_pos) or
+                           btn_loss_new_game.is_hovered(mouse_pos)))
+            )
+        try:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if is_hovering
+                                    else pygame.SYSTEM_CURSOR_ARROW)
+        except pygame.error:
+            pass
+
+        # Xử lý sự kiện (Event Loop)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
 
+            # Ưu tiên tương tác với modal chọn màn nếu đang mở
+            if level_modal.is_open:
+                selected_level = level_modal.handle_event(event)
+                if selected_level is not None:
+                    load_level_and_reset(selected_level)
+                continue
+
+            # Xử lý phím bấm
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     pygame.quit()
                     return
 
                 if event.key == pygame.K_r:
-                    state, won, lost, move_count = reset(), False, False, 0
-                    animating = False
-                    falling_goal = False
-                    falling_void = False
-                    buffered_action = None
-                    fall_shatter_pieces = []
-                    spawning = True
-                    spawn_start_time = pygame.time.get_ticks()
-                    spawn_r = state.r
-                    spawn_c = state.c
-                    spawn_orient = state.orient
-                    z_spawn = 8.5
+                    load_level_and_reset(current_level_path)
 
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
@@ -175,13 +243,29 @@ def run(level_path: str) -> None:
                             anim_start_time = pygame.time.get_ticks()
                             buffered_action = None
                     else:
-                        # Đệm phím nếu đang lăn trên sàn và đã đi hơn 35% chặng đường
                         if not anim_is_void:
                             elapsed = pygame.time.get_ticks() - anim_start_time
                             if elapsed / ANIM_DURATION_MS > 0.35:
                                 buffered_action = action
 
-        # Cập nhật tiến độ Spawn Drop (khối rơi từ mây xuống khi bắt đầu / nhấn R)
+            # Xử lý click chuột vào nút bấm
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if level_pill_rect.collidepoint(event.pos) or btn_new_game.is_clicked(event):
+                    level_modal.open(current_level_path)
+                elif btn_restart.is_clicked(event):
+                    load_level_and_reset(current_level_path)
+                elif won:
+                    if btn_win_restart.is_clicked(event):
+                        load_level_and_reset(current_level_path)
+                    elif btn_win_new_game.is_clicked(event):
+                        level_modal.open(current_level_path)
+                elif lost:
+                    if btn_loss_restart.is_clicked(event):
+                        load_level_and_reset(current_level_path)
+                    elif btn_loss_new_game.is_clicked(event):
+                        level_modal.open(current_level_path)
+
+        # Cập nhật tiến độ Spawn Drop
         if spawning:
             now = pygame.time.get_ticks()
             elapsed = now - spawn_start_time
@@ -191,11 +275,9 @@ def run(level_path: str) -> None:
             else:
                 t = elapsed / float(SPAWN_DURATION_MS)
                 if t <= 0.78:
-                    # Rơi nhanh dần theo gia tốc trọng lực từ Z = 8.5
                     tf = t / 0.78
-                    z_spawn = 8.5 * (1.0 - tf * tf)
+                    z_spawn = SPAWN_HEIGHT * (1.0 - tf * tf)
                 else:
-                    # Nảy nhẹ đàn hồi 1 nhịp khi tiếp đất
                     tb = (t - 0.78) / 0.22
                     z_spawn = 0.22 * math.sin(tb * math.pi) * (1.0 - tb * 0.5)
 
@@ -209,15 +291,15 @@ def run(level_path: str) -> None:
                 move_count += 1
 
                 if anim_is_void:
-                    # Lăn hụt mép sàn -> khối vỡ vụn thành các voxel 3D tản mác ra không gian
                     falling_void = True
                     fall_start_time = pygame.time.get_ticks()
-                    fall_shatter_pieces = generate_shatter_pieces(anim_start_r, anim_start_c, anim_start_orient, anim_action)
+                    fall_shatter_pieces = generate_shatter_pieces(
+                        anim_start_r, anim_start_c, anim_start_orient, anim_action
+                    )
                     buffered_action = None
                 else:
                     state = anim_next_state
-                    if _is_goal(state):
-                        # Đứng đúng ô Goal -> rơi chìm vào lòng hố
+                    if game.is_goal(state):
                         falling_goal = True
                         fall_start_time = pygame.time.get_ticks()
                         fall_r = float(state.r)
@@ -225,7 +307,6 @@ def run(level_path: str) -> None:
                         fall_orient = state.orient
                         buffered_action = None
                     elif buffered_action is not None:
-                        # Kích hoạt ngay lệnh đệm
                         b_act = buffered_action
                         buffered_action = None
                         ns, anim_is_void = _step(state, b_act)
@@ -249,7 +330,6 @@ def run(level_path: str) -> None:
                 falling_goal = False
                 won = True
             else:
-                # Khối đứng nguyên tại ô Goal và mờ dần tự nhiên
                 alpha = int(255 * max(0.0, 1.0 - gt))
                 fall_tuple = ('goal', fall_r, fall_c, fall_orient, alpha)
 
@@ -261,40 +341,53 @@ def run(level_path: str) -> None:
                 falling_void = False
                 lost = True
             else:
-                # Giữ nét trong ~190ms đầu (t < 0.32s), sau đó mờ dần khi rơi sâu vào mây
                 if t < 0.32:
                     alpha = 255
                 elif t < 0.60:
                     alpha = int(255 * max(0.0, 1.0 - (t - 0.32) / 0.28))
                 else:
                     alpha = 0
-
                 fall_tuple = ('shatter', fall_shatter_pieces, t, alpha)
 
-        # Vẽ bầu trời mây và hòn đảo
+        # 1. Vẽ bầu trời và khung cảnh sàn
         draw_sky_with_clouds(screen, *WINDOW_SIZE)
         if spawning:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn))
+                       spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn),
+                       bridge_mask=state.bridges)
         elif animating:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       anim_state=(anim_start_r, anim_start_c, anim_start_orient, anim_action, anim_progress))
+                       anim_state=(anim_start_r, anim_start_c, anim_start_orient,
+                                   anim_action, anim_progress), bridge_mask=state.bridges)
         elif falling_goal or falling_void:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       fall_state=fall_tuple)
+                       fall_state=fall_tuple, bridge_mask=state.bridges)
         else:
-            # Khi đã thua (rơi xong), ẩn khối khỏi màn hình
-            draw_scene(screen, level, None if lost else state, tw, th, offset, skew)
+            draw_scene(screen, level, None if lost else state, tw, th, offset, skew,
+                       bridge_mask=state.bridges)
 
+        # 2. Vẽ thanh trạng thái (HUD) góc trên-trái
         lvl_lbl = font_hud_lbl.render("LEVEL", True, (138, 90, 50))
         lvl_val = font_hud_val.render(f"{level.name}", True, (185, 28, 28))
-        w_lvl = _draw_hud_pill(screen, 24, 20, lvl_lbl, lvl_val)
+
+        is_lvl_hover = (level_pill_rect.collidepoint(mouse_pos)
+                        and not level_modal.is_open)
+        lvl_bg = (245, 230, 205, 255) if is_lvl_hover else (254, 250, 235, 235)
+        lvl_border = (150, 95, 45, 230) if is_lvl_hover else (180, 130, 85, 180)
+
+        w_lvl = _draw_hud_pill(screen, 24, 20, lvl_lbl, lvl_val,
+                               bg_col=lvl_bg, border_col=lvl_border)
+        level_pill_rect = pygame.Rect(24, 20, w_lvl, 38)
 
         mov_lbl = font_hud_lbl.render("MOVES", True, (138, 90, 50))
         mov_val = font_hud_val.render(f"{move_count}", True, (180, 83, 9))
         _draw_hud_pill(screen, 24 + w_lvl + 12, 20, mov_lbl, mov_val)
 
-        # Controls Hint
+        # 3. Vẽ nút bấm HUD góc trên-phải
+        btn_restart.draw(screen, mouse_pos)
+        btn_new_game.draw(screen, mouse_pos)
+
+        # 4. Hướng dẫn phím điều khiển ở đáy màn hình
         hint_str = "Arrow Keys: Move   •   R: Restart   •   ESC: Exit"
         hint_txt = font_hint.render(hint_str, True, (90, 60, 35))
         hw, hh = hint_txt.get_width() + 32, 34
@@ -304,37 +397,32 @@ def run(level_path: str) -> None:
                            border_radius=12, border_color=(180, 130, 85, 150), border_width=1)
         screen.blit(hint_txt, ((WINDOW_SIZE[0] - hint_txt.get_width()) // 2, WINDOW_SIZE[1] - 38))
 
-        # Banner chiến thắng (YOU WIN!)
+        # 5. Banner chiến thắng (YOU WIN!)
         if won:
-            pw, ph = 460, 180
-            px = (WINDOW_SIZE[0] - pw) // 2
-            py = (WINDOW_SIZE[1] - ph) // 2
-            draw_aa_round_rect(screen, (px, py, pw, ph), (250, 254, 250, 250),
+            draw_aa_round_rect(screen, (b_px, b_py, banner_w, banner_h), (250, 254, 250, 250),
                                border_radius=16, border_color=(34, 197, 94), border_width=2)
-
             msg = font_title.render('YOU WIN!', True, (22, 163, 74))
             sub = font_sub.render(f'Completed in {move_count} moves', True, (21, 128, 61))
-            restart_hint = font_hint.render('Press R to play again', True, (74, 140, 90))
+            screen.blit(msg, (b_px + (banner_w - msg.get_width()) // 2, b_py + 24))
+            screen.blit(sub, (b_px + (banner_w - sub.get_width()) // 2, b_py + 88))
+            btn_win_restart.draw(screen, mouse_pos)
+            btn_win_new_game.draw(screen, mouse_pos)
 
-            screen.blit(msg, (px + (pw - msg.get_width()) // 2, py + 24))
-            screen.blit(sub, (px + (pw - sub.get_width()) // 2, py + 95))
-            screen.blit(restart_hint, (px + (pw - restart_hint.get_width()) // 2, py + 130))
-
-        # Banner thất bại (GAME OVER)
+        # 6. Banner thất bại (GAME OVER)
         if lost:
-            pw, ph = 460, 180
-            px = (WINDOW_SIZE[0] - pw) // 2
-            py = (WINDOW_SIZE[1] - ph) // 2
-            draw_aa_round_rect(screen, (px, py, pw, ph), (255, 248, 246, 250),
+            draw_aa_round_rect(screen, (b_px, b_py, banner_w, banner_h), (255, 248, 246, 250),
                                border_radius=16, border_color=(220, 75, 60), border_width=2)
-
             msg = font_title.render('GAME OVER', True, (185, 28, 28))
-            sub = font_sub.render(f'You fell into the void ({move_count} moves)', True, (110, 65, 55))
-            restart_hint = font_hint.render('Press R to try again', True, (140, 80, 70))
+            sub = font_sub.render(f'You fell into the void ({move_count} moves)',
+                                  True, (110, 65, 55))
+            screen.blit(msg, (b_px + (banner_w - msg.get_width()) // 2, b_py + 24))
+            screen.blit(sub, (b_px + (banner_w - sub.get_width()) // 2, b_py + 88))
+            btn_loss_restart.draw(screen, mouse_pos)
+            btn_loss_new_game.draw(screen, mouse_pos)
 
-            screen.blit(msg, (px + (pw - msg.get_width()) // 2, py + 24))
-            screen.blit(sub, (px + (pw - sub.get_width()) // 2, py + 95))
-            screen.blit(restart_hint, (px + (pw - restart_hint.get_width()) // 2, py + 130))
+        # 7. Vẽ Hộp thoại chọn màn (nếu đang mở)
+        if level_modal.is_open:
+            level_modal.draw(screen, mouse_pos)
 
         pygame.display.flip()
         clock.tick(FPS)

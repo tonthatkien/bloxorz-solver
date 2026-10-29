@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import unittest
 
+from game.block import Block
 from game.game import Game
 from game.level_loader import load_level
 from game.state import HORIZ, STAND, State, cells
@@ -55,8 +56,8 @@ class TestT2Scenarios(unittest.TestCase):
         game = self.game("rule_forced_fragile_loss")
         initial = game.initial_state()
         lying = next(s for a, s, _ in game.get_successors(initial) if a == "R")
-        core_moves = {a: s for a, s, _ in game.core.get_successors(lying)}
-        self.assertEqual(core_moves["R"], State(0, 3, STAND))
+        rolled = Block(lying.r, lying.c, lying.orient).roll("R")
+        self.assertEqual((rolled.r, rolled.c, rolled.orient), (0, 3, STAND))
         self.assertNotIn("R", {a for a, _, _ in game.get_successors(lying)})
         self.assertIsNone(solve(game))
         catalog = json.loads((Path(__file__).with_name("t2_solutions.json")).read_text())

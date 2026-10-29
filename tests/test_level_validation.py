@@ -101,7 +101,8 @@ class TestLevelValidation(unittest.TestCase):
                         elif kind != "goal":
                             switch = {"type": kind, "pos": pos}
                             if kind == "split":
-                                switch["cubes"] = [[0, 1], [0, 2]]
+                                # Reach the overlay check with non-adjacent destinations.
+                                switch["cubes"] = [[0, 1], [0, 3]]
                             data["switches"] = [switch]
                     with self.assertRaises(LevelValidationError) as caught:
                         parse_level(data)
@@ -146,7 +147,8 @@ class TestLevelValidation(unittest.TestCase):
                                     ([0, 2], "switch"), ([99, 1], "outside")):
             with self.subTest(destination=destination):
                 data = advanced_level()
-                data["switches"][2]["cubes"][0] = destination
+                # Exercise the terrain error independently of cube adjacency.
+                data["switches"][2]["cubes"] = [destination, [0, 4]]
                 with self.assertRaises(LevelValidationError) as caught:
                     parse_level(data)
                 message = str(caught.exception)

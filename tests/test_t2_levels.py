@@ -1,13 +1,16 @@
-"""T2 level contracts and replay proofs; advanced integration is explicitly gated."""
+"""T2 level contracts and replay proofs through the integrated production Game."""
 import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
 
+from game.block import Block
 from game.game import Game
 from game.level_loader import Level, load_level
 from game.state import HORIZ, STAND, State, cells
-from tests.level_verifier import TileRules, VerificationGame, replay, solve
+from solvers import bfs
+from solvers.base import Limits
+from tests.level_verifier import VerificationGame, replay, solve
 
 CATALOG = json.loads((Path(__file__).with_name("t2_solutions.json")).read_text())
 
@@ -26,14 +29,8 @@ def _advance(game: VerificationGame, actions: str) -> list[State]:
     return states
 
 
-def _core_handles_switches() -> bool:
-    # Capability probe: main currently lacks B2; do not declare Game integration verified.
-    return any(action == "R" and state.bridges == 1 << 2
-               for action, state, _ in Game(_level("g3_switch_01")).get_successors(State()))
-
-
 class TestT2Catalog(unittest.TestCase):
-    """Validate data independently of whether B2 is present in the checkout."""
+    """Validate the level data and stored proof metadata."""
 
     def test_seven_levels_have_expected_groups_and_metadata(self) -> None:
         self.assertEqual(len(CATALOG), 7)
@@ -101,13 +98,13 @@ class _SolutionChecks:
 
 
 class TestT2FragileSolvability(_SolutionChecks, unittest.TestCase):
-    """B1 fragile safety can be verified even before B2 is merged."""
+    """Verify fragile safety and compare against geometric rolls without that restriction."""
 
     def test_easy_level_rejects_a_reachable_upright_shortcut(self) -> None:
         game = VerificationGame(_level("g2_fragile_01"))
         state = _advance(game, "RD")[-1]
-        core_moves = {a: s for a, s, _ in game.core.get_successors(state)}
-        self.assertEqual(core_moves["R"], State(1, 3))
+        rolled = Block(state.r, state.c, state.orient).roll("R")
+        self.assertEqual((rolled.r, rolled.c, rolled.orient), (1, 3, STAND))
         self.assertNotIn("R", {a for a, _, _ in game.get_successors(state)})
 
     def test_fragile_levels_have_optimal_replayable_solutions(self) -> None:
@@ -131,16 +128,16 @@ class TestT2FragileSolvability(_SolutionChecks, unittest.TestCase):
                     game = VerificationGame(level)
                     for state in states:
                         valid = {a for a, _, _ in game.get_successors(state)}
-                        for action, pose, _ in game.core.get_successors(state):
+                        block = Block(state.r, state.c, state.orient)
+                        for action, pose in game.core.board.valid_moves(block):
                             if pose.orient == STAND and (pose.r, pose.c) in level.fragile:
                                 self.assertNotIn(action, valid)
                                 rejected += 1
                     self.assertGreater(rejected, 0)
 
 
-@unittest.skipIf(TileRules is None, "Pending B2: game.tiles.TileRules is not on main")
 class TestT2BridgeSolvability(_SolutionChecks, unittest.TestCase):
-    """Run with the actual B2 helper on its dependency snapshot or once it reaches main."""
+    """Verify bridges and switches through the real production transitions."""
 
     def test_soft_level_has_solution(self) -> None:
         self.check_solution("g3_switch_01")
@@ -179,24 +176,32 @@ class TestT2BridgeSolvability(_SolutionChecks, unittest.TestCase):
     def test_both_mixed_switches_are_necessary(self) -> None:
         level = _level("g3_switch_03")
         for switch in level.switches.values():
-            game = VerificationGame(level)
-            game.rules = replace(game.rules, switches=tuple(
-                event for event in game.rules.switches if event.pos != switch.pos))
+            without_switch = replace(level, switches={
+                pos: item for pos, item in level.switches.items() if pos != switch.pos})
+            game = VerificationGame(without_switch)
             with self.subTest(disabled=switch.pos):
                 self.assertIsNone(solve(game))
 
 
-@unittest.skipUnless(_core_handles_switches(), "Pending advanced-tile integration in Game")
 class TestT2ProductionGame(unittest.TestCase):
-    """Keep the final production API check visible until Game actually implements B2."""
+    """Require production replay and keep the verification adapter aligned with Game."""
+
+    def test_adapter_matches_production_successors_on_every_recorded_path(self) -> None:
+        for name, record in CATALOG.items():
+            with self.subTest(level=name):
+                level = _level(name)
+                game, adapter = Game(level), VerificationGame(level)
+                for state in replay(game, tuple(record["path"])):
+                    self.assertEqual(adapter.get_successors(state), game.get_successors(state))
 
     def test_all_solutions_replay_through_integrated_game(self) -> None:
         for name, record in CATALOG.items():
             with self.subTest(level=name):
                 game = Game(_level(name))
-                result = solve(game)
-                self.assertIsNotNone(result)
-                self.assertEqual(len(result.path), record["length"])
+                result = bfs.solve(game, Limits(max_nodes=20000))
+                self.assertTrue(result.solved)
+                self.assertEqual(result.length, record["length"])
+                replay(game, tuple(result.path))
                 replay(game, tuple(record["path"]))
 
 

@@ -62,12 +62,12 @@ def _is_walkable(level: Level, state: State, position: Cell) -> bool:
 
 def move_cube(state: State, action: str, level: Level) -> Optional[State]:
     """Di chuyển cube đang điều khiển một ô hoặc đổi cube điều khiển.
-
-    Tiền điều kiện: ``state.split`` khác ``None`` và hai cube không kề nhau.
-    Caller (C2) phải chuẩn hóa trạng thái bằng ``try_merge`` trước khi gọi hàm này.
+    Tiền điều kiện: state.split không chứa 2 cube kề nhau; caller (C2) phải
+    chuẩn hóa bằng try_merge trước khi gọi.
 
     Raises:
-        ValueError: Nếu state chưa tách hoặc hai cube trong state đang kề nhau.
+        ValueError: Nếu state chưa tách hoặc vi phạm tiền điều kiện (hai cube
+            đang kề nhau). Guard này chỉ là kiểm tra bất biến.
     """
     if state.split is None:
         raise ValueError("move_cube chỉ xử lý trạng thái split.")

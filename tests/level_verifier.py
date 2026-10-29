@@ -1,22 +1,10 @@
-"""Test-only bounded BFS/replay adapter; never used by the GUI or production solvers.
-
-Main's Game currently generates basic rolls only. Fragile validation uses the B1 helper;
-bridges and switches require the actual B2 TileRules, without copying their implementation.
-"""
+"""Test-only bounded BFS/replay using the production Game's integrated tile rules."""
 from collections import deque
 from dataclasses import dataclass, replace
 
-from game.fragile import is_fragile_safe
 from game.game import Game
 from game.level_loader import Level
 from game.state import State
-
-try:
-    from game.tiles import TileRules
-except ModuleNotFoundError as error:
-    if error.name != "game.tiles":
-        raise
-    TileRules = None
 
 
 @dataclass(frozen=True)
@@ -29,18 +17,13 @@ class Solution:
 
 
 class VerificationGame:
-    """Filter actual Game rolls through B1/B2 for group2/3 verification only."""
+    """Delegate to Game, optionally omitting switches for a negative control."""
 
     def __init__(self, level: Level, disable_switches: bool = False) -> None:
-        self.level = level
-        self.core = Game(level)
         if any(switch.type == "split" for switch in level.switches.values()):
             raise ValueError("T2 verifier excludes split gameplay")
-        if (level.bridges or level.switches) and TileRules is None:
-            raise RuntimeError("B2 game.tiles.TileRules is required for bridge verification")
-        self.rules = TileRules.from_level(level) if TileRules is not None else None
-        if disable_switches and self.rules is not None:
-            self.rules = replace(self.rules, switches=())
+        self.level = replace(level, switches={}) if disable_switches else level
+        self.core = Game(self.level)
 
     def initial_state(self) -> State:
         """Use the real Game start and initial bridge mask."""
@@ -51,16 +34,8 @@ class VerificationGame:
         return self.core.is_goal(state)
 
     def get_successors(self, state: State) -> list[tuple[str, State, float]]:
-        """Preserve Game roll order and apply the existing advanced-tile helpers."""
-        successors = []
-        for action, pose, cost in self.core.get_successors(state):
-            if self.rules is not None:
-                landed = self.rules.resolve_landing(state, pose)
-            else:
-                landed = pose if is_fragile_safe(pose, self.level.fragile) else None
-            if landed is not None:
-                successors.append((action, landed, cost))
-        return successors
+        """Use production transitions directly, without applying tile effects twice."""
+        return self.core.get_successors(state)
 
 
 def solve(game: VerificationGame | Game, max_expanded: int = 20000) -> Solution | None:
