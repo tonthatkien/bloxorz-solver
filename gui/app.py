@@ -11,7 +11,6 @@ from gui.draw import (
     calculate_iso_layout,
     draw_scene,
     draw_sky_with_clouds,
-    generate_shatter_pieces,
 )
 from gui.widgets import (
     Button,
@@ -81,7 +80,7 @@ def run(level_path: str) -> None:
     # Cấu hình thời gian và thông số Animation
     ANIM_DURATION_MS = 140
     FALL_GOAL_DURATION_MS = 600
-    FALL_VOID_DURATION_MS = 600
+    FALL_VOID_DURATION_MS = 900
     SPAWN_DURATION_MS = 460
     SPAWN_HEIGHT = 8.5
 
@@ -293,9 +292,6 @@ def run(level_path: str) -> None:
                 if anim_is_void:
                     falling_void = True
                     fall_start_time = pygame.time.get_ticks()
-                    fall_shatter_pieces = generate_shatter_pieces(
-                        anim_start_r, anim_start_c, anim_start_orient, anim_action
-                    )
                     buffered_action = None
                 else:
                     state = anim_next_state
@@ -341,13 +337,9 @@ def run(level_path: str) -> None:
                 falling_void = False
                 lost = True
             else:
-                if t < 0.32:
-                    alpha = 255
-                elif t < 0.60:
-                    alpha = int(255 * max(0.0, 1.0 - (t - 0.32) / 0.28))
-                else:
-                    alpha = 0
-                fall_tuple = ('shatter', fall_shatter_pieces, t, alpha)
+                # Cả màn rớt xuống cùng khối (xem draw_scene, nhánh 'void')
+                fall_tuple = ('void', anim_start_r, anim_start_c,
+                              anim_start_orient, anim_action, t)
 
         # 1. Vẽ bầu trời và khung cảnh sàn
         draw_sky_with_clouds(screen, *WINDOW_SIZE)
@@ -361,8 +353,9 @@ def run(level_path: str) -> None:
         elif falling_goal or falling_void:
             draw_scene(screen, level, None, tw, th, offset, skew,
                        fall_state=fall_tuple)
-        else:
-            draw_scene(screen, level, None if lost else state, tw, th, offset, skew)
+        elif not lost:
+            # Thua do rơi khỏi sàn: cả màn đã rớt mất, chỉ còn bầu trời phía sau banner GAME OVER
+            draw_scene(screen, level, state, tw, th, offset, skew)
 
         # 2. Vẽ thanh trạng thái (HUD) góc trên-trái
         lvl_lbl = font_hud_lbl.render("LEVEL", True, (138, 90, 50))
