@@ -210,6 +210,10 @@ def run(level_path: str) -> None:
             if act == action:
                 return next_st, False
 
+        # Action 'S' chỉ có hiệu lực khi ở trạng thái split (hoán đổi active cube)
+        if action == 'S':
+            return None, False
+
         # Nếu đang ở trạng thái split: đi ra ngoài sàn -> rơi vực
         if cur_state.split is not None:
             c1, c2 = cur_state.split
@@ -461,11 +465,10 @@ def run(level_path: str) -> None:
 
                 # Bấm phím SPACE để đổi quyền điều khiển khi ở trạng thái tách 2 cube (Task D4)
                 elif can_control and event.key == pygame.K_SPACE:
-                    if state.split is not None and not animating:
-                        c1, c2 = state.split
-                        state = State(
-                            r=0, c=0, orient=STAND, bridges=state.bridges, split=(c2, c1)
-                        )
+                    if not animating:
+                        ns, _ = _step(state, 'S')
+                        if ns is not None:
+                            state = ns
 
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
