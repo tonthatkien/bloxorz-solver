@@ -203,8 +203,12 @@ def draw_animated_single_cube(surface: pygame.Surface,
         pivot, axis, sign = (c, r + 1), 'X', 1
     elif action == 'L':
         pivot, axis, sign = (c, r), 'Y', -1
-    else:  # 'R'
+    elif action == 'R':
         pivot, axis, sign = (c + 1, r), 'Y', 1
+    else:
+        # Không phải hành động lăn 4 hướng (ví dụ 'S') -> vẽ khối đứng yên an toàn
+        draw_single_cube(surface, r, c, is_active, tw, th, off, skew)
+        return
 
     angle = sign * (math.pi / 2.0) * progress
 
@@ -255,7 +259,9 @@ def draw_split_cubes(surface: pygame.Surface,
                      off: Tuple[int, int], skew: int,
                      anim_info: Optional[Tuple[int, int, str, float]] = None,
                      merge_progress: Optional[float] = None,
-                     indicator_colors: Optional[Tuple[Tuple[int, int, int], Tuple[int, int, int]]] = None) -> None:
+                     indicator_colors: Optional[
+                         Tuple[Tuple[int, int, int], Tuple[int, int, int]]
+                     ] = None) -> None:
     """Vẽ cả 2 cube (active & inactive) với thứ tự chiều sâu và chỉ thị trực quan."""
     c_active, c_inactive = split
     now_ms = pygame.time.get_ticks()

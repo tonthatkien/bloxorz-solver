@@ -49,8 +49,8 @@ def draw_animated_block(surface: pygame.Surface,
                         shadow: bool = True,
                         pivot_override: Optional[Tuple[float, float, str, float]] = None) -> None:
     # extra_angle: góc lật thêm (rad) sau khi đã lăn 90 độ; drop: độ dời (x, y, z) của cả khối;
-    # shadow=False: bỏ bóng tiếp xúc. pivot_override=(px, py, axis, angle): xoay quanh một trục tùy ý
-    # (px là cột, py là hàng, axis 'X' hoặc 'Y') thay vì mép khối. Dùng cho hiệu ứng rơi khỏi sàn,
+    # shadow=False: bỏ bóng tiếp xúc. pivot_override=(px, py, axis, angle): xoay quanh trục tùy ý
+    # (px là cột, py là hàng, axis 'X' hoặc 'Y') thay vì mép khối. Dùng cho hiệu ứng rơi sàn,
     # mặc định giữ nguyên hành vi cũ.
     cube_h = 60
 
@@ -64,8 +64,12 @@ def draw_animated_block(surface: pygame.Surface,
         pivot, axis, sign = (c, r + ly), 'X', 1
     elif action == 'L':
         pivot, axis, sign = (c, r), 'Y', -1
-    else:  # 'R'
+    elif action == 'R':
         pivot, axis, sign = (c + lx, r), 'Y', 1
+    else:
+        # Fallback an toàn nếu action không phải hướng lăn
+        draw_block(surface, r, c, orient, tw, th, off, skew)
+        return
 
     angle = sign * ((math.pi / 2.0) * progress + extra_angle)
     if pivot_override is not None:
@@ -127,7 +131,8 @@ def draw_animated_block(surface: pygame.Surface,
              int(off[1] + v[1] * th))
             for v in (rot_verts[0], rot_verts[1], rot_verts[2], rot_verts[3])
         ]
-        pygame.draw.polygon(shadow_surf, (25, 45, 20, s_alpha // 2), [(p[0] + 4, p[1] + 3) for p in bot_shadow])
+        shadow_offset_pts = [(p[0] + 4, p[1] + 3) for p in bot_shadow]
+        pygame.draw.polygon(shadow_surf, (25, 45, 20, s_alpha // 2), shadow_offset_pts)
         pygame.draw.polygon(shadow_surf, (20, 35, 15, s_alpha), bot_shadow)
         surface.blit(shadow_surf, (0, 0))
 
