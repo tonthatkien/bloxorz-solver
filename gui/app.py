@@ -14,6 +14,7 @@ from gui.draw import (
     draw_scene,
     draw_sky_with_clouds,
 )
+from gui.theme import get_theme
 from gui.widgets import (
     Button,
     HelpModal,
@@ -708,11 +709,13 @@ def run(level_path: str) -> None:
                                   anim_start_orient, anim_action, t)
 
         # 1. Draw Sky and Isometric Scene (Centered)
-        draw_sky_with_clouds(screen, *WINDOW_SIZE)
+        current_theme = get_theme(level.name)
+        draw_sky_with_clouds(screen, *WINDOW_SIZE, theme=current_theme)
         if spawning:
             draw_scene(screen, level, None, tw, th, offset, skew,
                        spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn),
-                       bridge_mask=state.bridges)
+                       bridge_mask=state.bridges,
+                       theme=current_theme)
         elif animating:
             if anim_is_split and anim_split_tuple is not None:
                 anim_tuple = ('split', anim_start_r, anim_start_c, anim_action,
@@ -721,13 +724,16 @@ def run(level_path: str) -> None:
                 anim_tuple = (anim_start_r, anim_start_c, anim_start_orient,
                               anim_action, anim_progress)
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       anim_state=anim_tuple, bridge_mask=state.bridges)
+                       anim_state=anim_tuple, bridge_mask=state.bridges,
+                       theme=current_theme)
         elif falling_goal or falling_void:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       fall_state=fall_tuple, bridge_mask=state.bridges)
+                       fall_state=fall_tuple, bridge_mask=state.bridges,
+                       theme=current_theme)
         elif not lost:
             draw_scene(screen, level, state, tw, th, offset, skew,
-                       bridge_mask=state.bridges)
+                       bridge_mask=state.bridges,
+                       theme=current_theme)
 
         # 2. Top-left Status Pills (LEVEL & MOVES)
         lvl_lbl = font_hud_lbl.render('LEVEL', True, (71, 85, 105))
