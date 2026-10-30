@@ -170,48 +170,30 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Vầng mặt trời tỏa sáng (Warm Sun with Smooth Radial Glow)
+    # 3. Vầng mặt trời tỏa sáng ấm áp (Warm Radiant Sun)
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    num_steps = 22
-    max_radius = int(210 * scale)
+    num_steps = 24
+    max_radius = int(220 * scale)
     for i in range(num_steps, 0, -1):
         ratio = i / float(num_steps)
         rad = int(max_radius * (ratio ** 1.35))
-        alpha = int(110 * ((1.0 - ratio) ** 1.7))
+        alpha = int(105 * ((1.0 - ratio) ** 1.7))
         if rad > 0 and alpha > 0:
-            pygame.draw.circle(sun_surf, (255, 230, 150, alpha), (sun_cx, sun_cy), rad)
+            pygame.draw.circle(sun_surf, (255, 232, 155, alpha), (sun_cx, sun_cy), rad)
+
+    # Vầng sáng trung tâm (Corona glow)
+    pygame.draw.circle(sun_surf, (255, 245, 195, 180), (sun_cx, sun_cy), max(16, int(26 * scale)))
 
     # Lõi mặt trời sáng ấm
     pygame.draw.circle(sun_surf, (255, 255, 245, 255), (sun_cx, sun_cy), max(12, int(18 * scale)))
-
-    # 4. Tia nắng xiên (God rays / Sunbeams) chiếu từ góc trên-phải quét xuống dưới-trái
-    ray_length = 2400 * scale
-    rays = [
-        # (angle_deg, spread_deg, alpha)
-        (154.0, 5.0, 20),
-        (144.0, 6.5, 26),
-        (134.0, 6.0, 22),
-        (123.0, 4.5, 18),
-    ]
-
-    for angle, spread, alpha in rays:
-        a1 = math.radians(angle - spread * 0.5)
-        a2 = math.radians(angle + spread * 0.5)
-        r_start = 20 * scale
-        p0 = (sun_cx + int(r_start * math.cos(a1)), sun_cy + int(r_start * math.sin(a1)))
-        p1 = (sun_cx + int(r_start * math.cos(a2)), sun_cy + int(r_start * math.sin(a2)))
-        p2 = (sun_cx + int(ray_length * math.cos(a2)), sun_cy + int(ray_length * math.sin(a2)))
-        p3 = (sun_cx + int(ray_length * math.cos(a1)), sun_cy + int(ray_length * math.sin(a1)))
-
-        pygame.draw.polygon(sun_surf, (255, 248, 212, alpha), [p0, p1, p2, p3])
 
     surf.blit(sun_surf, (0, 0))
     return surf
 
 
 def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> None:
-    """Vẽ bầu trời, mặt trời, tia nắng xiên, hòn đảo xa và mây trôi ngang mượt mà."""
+    """Vẽ bầu trời, mặt trời tỏa nắng, hòn đảo xa và mây trôi ngang mượt mà."""
     global _cached_sky_bg
     if _cached_sky_bg is None or _cached_sky_bg[0] != win_w or _cached_sky_bg[1] != win_h:
         _cached_sky_bg = (win_w, win_h, _render_sky_background(win_w, win_h))
