@@ -272,6 +272,7 @@ def run(level_path: str) -> None:
         nonlocal is_solving, solving_name, new_result_ready, is_replaying
         nonlocal state, won, lost, move_count, animating, falling_goal, falling_void
         nonlocal buffered_action, fall_shatter_pieces
+        nonlocal anim_is_split, anim_split_tuple, fall_is_split, fall_split_tuple
 
         if is_solving:
             return
@@ -281,6 +282,10 @@ def run(level_path: str) -> None:
         state = game.initial_state()
         won, lost, move_count = False, False, 0
         animating = False
+        anim_is_split = False
+        anim_split_tuple = None
+        fall_is_split = False
+        fall_split_tuple = None
         falling_goal = False
         falling_void = False
         buffered_action = None
@@ -312,6 +317,7 @@ def run(level_path: str) -> None:
         nonlocal is_replaying, replay_actions, replay_index, replay_last_time
         nonlocal state, won, lost, move_count, animating, falling_goal, falling_void
         nonlocal buffered_action
+        nonlocal anim_is_split, anim_split_tuple, fall_is_split, fall_split_tuple
 
         if not last_result or not last_result.solved or not last_result.path:
             return
@@ -319,6 +325,10 @@ def run(level_path: str) -> None:
         state = game.initial_state()
         won, lost, move_count = False, False, 0
         animating = False
+        anim_is_split = False
+        anim_split_tuple = None
+        fall_is_split = False
+        fall_split_tuple = None
         falling_goal = False
         falling_void = False
         buffered_action = None
@@ -525,7 +535,8 @@ def run(level_path: str) -> None:
                         level_modal.open(current_level_path)
 
         # Replay Progression
-        if is_replaying and not animating and not falling_goal and not falling_void and not spawning:
+        if (is_replaying and not animating and not falling_goal
+                and not falling_void and not spawning):
             now = pygame.time.get_ticks()
             if now >= replay_last_time:
                 if replay_index < len(replay_actions):
@@ -536,11 +547,10 @@ def run(level_path: str) -> None:
                     cur_step_delay = int(REPLAY_STEP_DELAY_MS / replay_speed)
 
                     if act == 'S':
-                        # Hành động Space Swap: đổi cube đang điều khiển tức thì
+                        # Space Swap: đổi cube active tức thì (không tăng move_count)
                         ns, _ = _step(state, 'S')
                         if ns is not None:
                             state = ns
-                            move_count += 1
                             anim_is_split = True
                             anim_split_tuple = state.split
                             # Tạm dừng nhẹ để người xem thấy rõ khối active vừa đổi chất liệu
