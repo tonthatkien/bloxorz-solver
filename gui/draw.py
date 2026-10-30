@@ -179,6 +179,8 @@ def draw_scene(surface: pygame.Surface,
         draw_void_block()
         void_drawn = True
 
+    goal_garlands: list[Tuple[int, int]] = []
+
     # Vẽ từng hàng sàn theo trục Y (từ sau ra trước)
     for r in range(level.rows):
         for c in range(level.cols):
@@ -216,6 +218,7 @@ def draw_scene(surface: pygame.Surface,
                 draw_bridge_tile(surface, terrain, r, c, x, y, tw, th, skew)
             elif ch == 'G':
                 _draw_goal_tile(surface, terrain, r, c, x, y, tw, th, skew)
+                goal_garlands.append((x, y))
             else:
                 _draw_floor_tile(surface, terrain, r, c, x, y, tw, th, skew)
             switch = level.switches.get((r, c))
@@ -226,12 +229,9 @@ def draw_scene(surface: pygame.Surface,
             void_drawn = True
 
     # Vẽ vòng hoa quanh miệng hố đích sau khi toàn bộ địa hình sàn đã hoàn tất
-    # (Đảm bảo vòng hoa luôn trọn vẹn 100% không bao giờ bị các ô hàng trước che mất)
-    for gr in range(level.rows):
-        for gc in range(level.cols):
-            if terrain.grid[gr][gc] == 'G':
-                gx, gy = grid_to_iso(gr, gc, tw, th, off, skew)
-                _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th)
+    # (Đảm bảo vòng hoa luôn trọn vẹn 100% không bị ô hàng trước che, và rơi đồng bộ theo sàn khi thua)
+    for gx, gy in goal_garlands:
+        _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th)
 
     # Hiệu ứng Vỡ Vụn (Shatter): Các mảnh voxel nổ tung văng ra không gian
     if is_shatter:
