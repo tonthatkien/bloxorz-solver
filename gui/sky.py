@@ -224,11 +224,11 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
     # Quầng sáng mờ dần ra bầu trời - tông vàng ấm nhẹ nhàng
     for rad in range(r_max_halo, r_disc, -1):
         t = (rad - r_disc) / float(r_max_halo - r_disc)
-        alpha = int(58 * ((1.0 - t) ** 1.4))
-        pygame.draw.circle(sun_surf, (210, 158, 42, alpha), (sun_cx, sun_cy), rad)
+        alpha = int(90 * ((1.0 - t) ** 1.4))
+        pygame.draw.circle(sun_surf, (225, 175, 55, alpha), (sun_cx, sun_cy), rad)
 
     # Đĩa tròn mặt trời: vàng nhạt ấm - đủ nhận ra là mặt trời, không chói gắt, không trắng bạc
-    pygame.draw.circle(sun_surf, (222, 178, 55), (sun_cx, sun_cy), r_disc)
+    pygame.draw.circle(sun_surf, (230, 190, 70), (sun_cx, sun_cy), r_disc)
 
     surf.blit(sun_surf, (0, 0))
     return surf
