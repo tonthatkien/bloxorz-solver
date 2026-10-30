@@ -215,44 +215,23 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Vầng mặt trời vàng rực rỡ, tỏa nắng ấm áp (Radiant Warm Golden Sun)
+    # 3. Vầng mặt trời tỏa sáng ấm áp qua nhiều tầng hào quang xếp lớp (Smooth Multi-Layered Sun Glow)
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    # A. Vầng hào quang tỏa rộng nhiều tầng (Warm Golden Aura)
-    num_steps = 26
     max_radius = int(240 * scale)
-    for i in range(num_steps, 0, -1):
-        ratio = i / float(num_steps)
-        rad = int(max_radius * (ratio ** 1.30))
-        r_col = 255
-        g_col = int(180 + 55 * ratio)
-        b_col = int(30 + 100 * ratio)
-        alpha = int(125 * ((1.0 - ratio) ** 1.6))
-        if rad > 0 and alpha > 0:
-            pygame.draw.circle(sun_surf, (r_col, g_col, b_col, alpha), (sun_cx, sun_cy), rad)
+    steps = 65
+    for i in range(steps, 0, -1):
+        ratio = i / float(steps)        # 1.0 (rìa xa) -> 0.015 (tâm)
+        rad = max(1, int(max_radius * (ratio ** 1.35)))
+        intensity = 1.0 - ratio         # Độ sáng tăng dần về tâm: 0.0 -> 0.985
 
-    # B. Vòng tia hào quang tỏa tròn (Sun Corona Rays / Starburst)
-    num_rays = 12
-    r_inner = 24 * scale
-    r_outer = 48 * scale
-    ray_width_angle = math.pi / 18.0
-    for k in range(num_rays):
-        angle = k * (2.0 * math.pi / num_rays)
-        p_tip = (sun_cx + int(r_outer * math.cos(angle)),
-                 sun_cy + int(r_outer * math.sin(angle)))
-        p_b1 = (sun_cx + int(r_inner * math.cos(angle - ray_width_angle)),
-                sun_cy + int(r_inner * math.sin(angle - ray_width_angle)))
-        p_b2 = (sun_cx + int(r_inner * math.cos(angle + ray_width_angle)),
-                sun_cy + int(r_inner * math.sin(angle + ray_width_angle)))
-        pygame.draw.polygon(sun_surf, (255, 215, 65, 140), [p_tip, p_b1, p_b2])
+        # Chuyển sắc mượt mà: Cam mật ong -> Vàng nắng -> Lõi sáng chói
+        r = 255
+        g = int(170 + 75 * (intensity ** 0.85))
+        b = int(30 + 170 * (intensity ** 1.8))
+        alpha = min(255, int(255 * (intensity ** 1.3)))
 
-    # C. Quầng sáng corona bao quanh đĩa mặt trời
-    pygame.draw.circle(sun_surf, (255, 210, 50, 200), (sun_cx, sun_cy), max(18, int(30 * scale)))
-
-    # D. Đĩa mặt trời màu vàng ấm rực rỡ (Golden Sun Core)
-    pygame.draw.circle(sun_surf, (255, 228, 60, 255), (sun_cx, sun_cy), max(14, int(22 * scale)))
-    # Tâm đĩa sáng bừng
-    pygame.draw.circle(sun_surf, (255, 250, 160, 255), (sun_cx, sun_cy), max(9, int(14 * scale)))
+        pygame.draw.circle(sun_surf, (r, g, b, alpha), (sun_cx, sun_cy), rad)
 
     surf.blit(sun_surf, (0, 0))
     return surf
