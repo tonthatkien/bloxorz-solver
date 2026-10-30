@@ -7,3 +7,4 @@ venv/
 experiments/results/*.csv
 experiments/results/*.png
 .DS_Store
+experiments/results/f4/
