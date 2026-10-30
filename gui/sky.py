@@ -215,27 +215,20 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Mặt trời hình tròn đường kính 70px với vòng tròn ở giữa (hạ độ chói, ấm áp tự nhiên)
+    # 3. Mặt trời hình tròn đường kính 70px - vàng cam ấm tự nhiên, không chói gắt, không giống mặt trăng
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    r_disc = int(35 * scale)        # Bán kính đĩa ngoài 35px -> Đường kính 70px
-    r_inner = int(18 * scale)       # Bán kính vòng tròn ở giữa tâm
+    r_disc = int(35 * scale)        # Bán kính 35px -> Đường kính 70px
     r_max_halo = int(52 * scale)
 
-    # Quầng sáng ôm sát màu nắng vàng ấm dịu, chuyển mờ dần ra bầu trời
+    # Quầng sáng mờ dần ra bầu trời - tông vàng ấm nhẹ nhàng
     for rad in range(r_max_halo, r_disc, -1):
         t = (rad - r_disc) / float(r_max_halo - r_disc)
-        alpha = int(70 * ((1.0 - t) ** 1.3))
-        pygame.draw.circle(sun_surf, (240, 155, 45, alpha), (sun_cx, sun_cy), rad)
+        alpha = int(58 * ((1.0 - t) ** 1.4))
+        pygame.draw.circle(sun_surf, (220, 170, 50, alpha), (sun_cx, sun_cy), rad)
 
-    # Đĩa tròn mặt trời bên ngoài: tông vàng hổ phách ấm (dịu mắt, không chói gắt, không bạc màu như trăng)
-    pygame.draw.circle(sun_surf, (242, 172, 60), (sun_cx, sun_cy), r_disc)
-
-    # Vòng tròn ở giữa mặt trời: lõi tròn ấm sáng nhẹ nhàng tạo chiều sâu
-    pygame.draw.circle(sun_surf, (252, 205, 105), (sun_cx, sun_cy), r_inner)
-
-    # Đường viền vòng tròn ở giữa rõ nét
-    pygame.draw.circle(sun_surf, (220, 140, 35), (sun_cx, sun_cy), r_inner, max(1, int(1.5 * scale)))
+    # Đĩa tròn mặt trời: vàng nhạt ấm - đủ nhận ra là mặt trời, không chói gắt, không trắng bạc
+    pygame.draw.circle(sun_surf, (230, 190, 70), (sun_cx, sun_cy), r_disc)
 
     surf.blit(sun_surf, (0, 0))
     return surf
