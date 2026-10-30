@@ -215,23 +215,24 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Vầng mặt trời tỏa sáng ấm áp qua nhiều tầng hào quang xếp lớp (Smooth Multi-Layered Sun Glow)
+    # 3. Mặt trời nhỏ nhắn làm điểm nhấn (rõ hình tròn ở tâm, quầng sáng ấm gọn gàng)
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    max_radius = int(240 * scale)
-    steps = 65
-    for i in range(steps, 0, -1):
-        ratio = i / float(steps)        # 1.0 (rìa xa) -> 0.015 (tâm)
-        rad = max(1, int(max_radius * (ratio ** 1.35)))
-        intensity = 1.0 - ratio         # Độ sáng tăng dần về tâm: 0.0 -> 0.985
+    r_disc = max(11, int(15 * scale))
+    r_max_halo = int(44 * scale)
 
-        # Chuyển sắc mượt mà: Cam mật ong -> Vàng nắng -> Lõi sáng chói
-        r = 255
-        g = int(170 + 75 * (intensity ** 0.85))
-        b = int(30 + 170 * (intensity ** 1.8))
-        alpha = min(255, int(255 * (intensity ** 1.3)))
+    # Quầng sáng ôm sát đĩa mặt trời
+    for rad in range(r_max_halo, r_disc, -1):
+        t = (rad - r_disc) / float(r_max_halo - r_disc)
+        alpha = int(90 * ((1.0 - t) ** 1.5))
+        g = int(210 + 25 * (1.0 - t))
+        b = int(60 + 70 * (1.0 - t))
+        pygame.draw.circle(sun_surf, (255, g, b, alpha), (sun_cx, sun_cy), rad)
 
-        pygame.draw.circle(sun_surf, (r, g, b, alpha), (sun_cx, sun_cy), rad)
+    # Đĩa tròn mặt trời rõ nét, xinh xắn ở tâm
+    pygame.draw.circle(sun_surf, (255, 205, 30), (sun_cx, sun_cy), r_disc)
+    pygame.draw.circle(sun_surf, (255, 235, 60), (sun_cx, sun_cy), r_disc - 1)
+    pygame.draw.circle(sun_surf, (255, 248, 150), (sun_cx - 2, sun_cy - 2), max(4, r_disc // 3))
 
     surf.blit(sun_surf, (0, 0))
     return surf
