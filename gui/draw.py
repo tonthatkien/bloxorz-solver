@@ -69,6 +69,8 @@ def draw_scene(surface: pygame.Surface,
     is_void = (fall_state is not None and fall_state[0] == 'void')
     is_void_split = (fall_state is not None and fall_state[0] == 'void_split')
 
+    scr_h = surface.get_height()
+
     # Giữ mask runtime cả khi khối được vẽ riêng trong animation (state=None).
     if bridge_mask is None:
         bridge_mask = state.bridges if state is not None else level.initial_bridge_mask()
@@ -109,17 +111,21 @@ def draw_scene(surface: pygame.Surface,
         # Tâm chấn chấn động tại vị trí khối lăn hụt (hoặc vị trí ô sàn dễ vỡ)
         center_r = rolled.r + (1.0 if rolled.orient == VERT else 0.5)
         center_c = rolled.c + (1.0 if rolled.orient == HORIZ else 0.5)
-        # Dùng terrain (đã tính theo mask cầu) để cầu đang đóng được coi là ô trống, giống luật game.
-        void_floor = [0 <= rr < level.rows and 0 <= cc < level.cols and terrain.grid[rr][cc] != '.'
-                      for rr, cc in cells(State(rolled.r, rolled.c, rolled.orient))]
+        # Dùng terrain (theo mask cầu) để cầu đóng được coi là ô trống, giống luật game.
+        void_floor = [
+            0 <= rr < level.rows and 0 <= cc < level.cols and terrain.grid[rr][cc] != '.'
+            for rr, cc in cells(State(rolled.r, rolled.c, rolled.orient))
+        ]
         if not any(void_floor):
             void_mode = 'free'
         elif not all(void_floor):
             void_mode = 'tip'
-        # Rơi ra mép sau (bấm U): khối nằm sau lưng map, nếu xen kẽ thì sàn che mất nên nhìn không rõ.
-        # Vì vậy trường hợp này vẽ khối đè lên sàn (vẽ sau cùng) để thấy rõ nó tụt xuống.
-        void_ordered = void_mode == 'tip' or void_mode == 'ride' or (void_mode == 'free' and vaction != 'U')
-        # Khối rơi tự do phải xen kẽ với sàn: các hàng phía trước (gần camera) che khối khi nó rớt xuống.
+        # Rơi ra mép sau (U): khối nằm sau map, vẽ sau cùng để thấy rõ nó tụt xuống.
+        void_ordered = (
+            void_mode == 'tip' or void_mode == 'ride'
+            or (void_mode == 'free' and vaction != 'U')
+        )
+        # Khối rơi tự do xen kẽ với sàn: các hàng phía trước che khối khi rớt xuống.
         split_row = rolled.r + (2 if rolled.orient == VERT else 1) - 1
         if is_fragile_fall:
             split_row = rolled.r - 1
@@ -171,7 +177,6 @@ def draw_scene(surface: pygame.Surface,
         draw_void_block()
         void_drawn = True
 
-    scr_h = surface.get_height()
     # Vẽ từng hàng sàn theo trục Y (từ sau ra trước)
     for r in range(level.rows):
         for c in range(level.cols):
@@ -244,8 +249,10 @@ def draw_scene(surface: pygame.Surface,
         # Nếu là anim lăn khối bình thường (5 phần tử: r, c, orient, action, progress)
         if len(anim_state) == 5:
             ar, ac, aorient, aaction, aprogress = anim_state
-            draw_animated_block(surface, ar, ac, aorient, aaction, aprogress, tw, th, off, skew)
-        # Nếu là anim split cube (6 phần tử: 'split', active_r, active_c, action, progress, split_tuple)
+            draw_animated_block(
+                surface, ar, ac, aorient, aaction, aprogress, tw, th, off, skew
+            )
+        # Nếu là anim split cube (6 phần tử: 'split', active_r, active_c, action, progress, sp)
         elif len(anim_state) == 6 and anim_state[0] == 'split':
             _, ar, ac, aaction, aprogress, sp = anim_state
             draw_split_cubes(

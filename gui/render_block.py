@@ -68,7 +68,7 @@ def draw_animated_block(surface: pygame.Surface,
         pivot, axis, sign = (c + lx, r), 'Y', 1
     else:
         # Fallback an toàn nếu action không phải hướng lăn
-        draw_block(surface, r, c, orient, tw, th, off, skew)
+        draw_block(surface, State(r, c, orient), tw, th, off, skew)
         return
 
     angle = sign * ((math.pi / 2.0) * progress + extra_angle)

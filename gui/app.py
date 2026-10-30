@@ -1,5 +1,6 @@
 """Main GUI for Bloxorz (Task D1/D2/D4/D5) - Centered Layout with Help Modal."""
 import math
+import queue
 import threading
 from typing import List, Optional, Tuple
 import pygame
@@ -195,7 +196,8 @@ def run(level_path: str) -> None:
     # Solver & Replay management
     is_solving = False
     solving_name = ''
-    new_result_ready = False
+    solve_req_id = 0
+    solve_queue: queue.Queue = queue.Queue()
     last_result: Optional[SearchResult] = None
     last_solver_name = ''
 
@@ -240,7 +242,11 @@ def run(level_path: str) -> None:
         nonlocal is_replaying, last_result, last_solver_name
         nonlocal anim_is_split, anim_split_tuple
         nonlocal fall_is_split, fall_split_tuple
+        nonlocal solve_req_id, is_solving, solving_name
 
+        solve_req_id += 1
+        is_solving = False
+        solving_name = ''
         is_replaying = False
         anim_is_split = False
         anim_split_tuple = None
@@ -273,7 +279,7 @@ def run(level_path: str) -> None:
 
     def _start_solve(name: str) -> None:
         """Start solver on a background thread without freezing the UI."""
-        nonlocal is_solving, solving_name, new_result_ready, is_replaying
+        nonlocal is_solving, solving_name, is_replaying, solve_req_id
         nonlocal state, won, lost, move_count, animating, falling_goal, falling_void
         nonlocal buffered_action, fall_shatter_pieces
         nonlocal anim_is_split, anim_split_tuple, fall_is_split, fall_split_tuple
@@ -295,25 +301,26 @@ def run(level_path: str) -> None:
         buffered_action = None
         fall_shatter_pieces = []
 
+        solve_req_id += 1
+        current_req_id = solve_req_id
         is_solving = True
         solving_name = name
-        new_result_ready = False
 
-        def _worker(solver_fn, game_level, s_name):
-            nonlocal is_solving, last_result, last_solver_name, new_result_ready
+        def _worker(solver_fn, game_level, s_name, req_id):
             try:
                 solver_game = Game(game_level)
                 limits = Limits(max_nodes=2_000_000, timeout_sec=60.0)
                 res = run_measured(solver_fn, solver_game, limits=limits, repeats=1)
             except Exception as exc:
                 res = SearchResult(solved=False, note=str(exc))
-            last_result = res
-            last_solver_name = s_name
-            is_solving = False
-            new_result_ready = True
+            solve_queue.put((req_id, s_name, res))
 
         solver_mod = SOLVER_MODULES[name]
-        thread = threading.Thread(target=_worker, args=(solver_mod.solve, level, name), daemon=True)
+        thread = threading.Thread(
+            target=_worker,
+            args=(solver_mod.solve, level, name, current_req_id),
+            daemon=True
+        )
         thread.start()
 
     def _start_replay() -> None:
@@ -394,10 +401,17 @@ def run(level_path: str) -> None:
     level_pill_rect = pygame.Rect(24, 20, 160, 38)
 
     while True:
-        if new_result_ready:
-            new_result_ready = False
-            if last_result and last_result.solved and last_result.path:
-                _start_replay()
+        while not solve_queue.empty():
+            try:
+                req_id, s_name, res = solve_queue.get_nowait()
+            except queue.Empty:
+                break
+            if req_id == solve_req_id:
+                last_result = res
+                last_solver_name = s_name
+                is_solving = False
+                if last_result.solved and last_result.path:
+                    _start_replay()
 
         can_control = (not won and not lost and not falling_goal
                        and not falling_void and not spawning
