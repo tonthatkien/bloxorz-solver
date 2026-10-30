@@ -176,6 +176,8 @@ def run(level_path: str) -> None:
     buffered_action: Optional[str] = None
     anim_is_split = False
     anim_split_tuple: Optional[Tuple[Tuple[int, int], Tuple[int, int]]] = None
+    fall_is_split = False
+    fall_split_tuple: Optional[Tuple[Tuple[int, int], Tuple[int, int]]] = None
 
     falling_goal = False
     falling_void = False
@@ -208,9 +210,16 @@ def run(level_path: str) -> None:
             if act == action:
                 return next_st, False
 
-        # Nếu đang ở trạng thái split mà Game Core chưa có successors hoặc đi vào ô cấm
+        # Nếu đang ở trạng thái split: đi ra ngoài sàn -> rơi vực
         if cur_state.split is not None:
-            return None, False
+            c1, c2 = cur_state.split
+            dr, dc = {'U': (-1, 0), 'D': (1, 0), 'L': (0, -1), 'R': (0, 1)}.get(action, (0, 0))
+            target_cell = (c1[0] + dr, c1[1] + dc)
+            if target_cell == c2:
+                return None, False  # Bị chặn bởi cube còn lại
+            phantom_split = (target_cell, c2)
+            phantom_state = State(0, 0, STAND, cur_state.bridges, phantom_split)
+            return phantom_state, True
 
         # Không nằm trong successors -> khối lăn ra ngoài sàn rơi vực
         rolled = Block(cur_state.r, cur_state.c, cur_state.orient).roll(action)
@@ -226,10 +235,13 @@ def run(level_path: str) -> None:
         nonlocal spawn_r, spawn_c, spawn_orient, z_spawn
         nonlocal is_replaying, last_result, last_solver_name
         nonlocal anim_is_split, anim_split_tuple
+        nonlocal fall_is_split, fall_split_tuple
 
         is_replaying = False
         anim_is_split = False
         anim_split_tuple = None
+        fall_is_split = False
+        fall_split_tuple = None
         if path != current_level_path:
             last_result = None
             last_solver_name = ''
@@ -585,6 +597,8 @@ def run(level_path: str) -> None:
 
                 if anim_is_void:
                     falling_void = True
+                    fall_is_split = anim_is_split
+                    fall_split_tuple = anim_split_tuple
                     fall_start_time = pygame.time.get_ticks()
                     buffered_action = None
                     is_replaying = False
@@ -659,8 +673,12 @@ def run(level_path: str) -> None:
                 falling_void = False
                 lost = True
             else:
-                fall_tuple = ('void', anim_start_r, anim_start_c,
-                              anim_start_orient, anim_action, t)
+                if fall_is_split and fall_split_tuple is not None:
+                    fall_tuple = ('void_split', anim_start_r, anim_start_c,
+                                  anim_action, t, fall_split_tuple)
+                else:
+                    fall_tuple = ('void', anim_start_r, anim_start_c,
+                                  anim_start_orient, anim_action, t)
 
         # 1. Draw Sky and Isometric Scene (Centered)
         draw_sky_with_clouds(screen, *WINDOW_SIZE)

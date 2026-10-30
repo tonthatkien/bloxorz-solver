@@ -160,25 +160,28 @@ def draw_single_cube(surface: pygame.Surface,
                      is_active: bool,
                      tw: int, th: int,
                      off: Tuple[int, int], skew: int,
-                     offset_xy: Tuple[float, float] = (0.0, 0.0)) -> None:
-    """Vẽ một khối lập phương đơn 1x1x1 tĩnh tại tọa độ (r, c)."""
+                     offset_xy: Tuple[float, float] = (0.0, 0.0),
+                     drop_z: float = 0.0,
+                     shadow: bool = True) -> None:
+    """Vẽ một khối lập phương đơn 1x1x1 tại tọa độ (r, c), hỗ trợ độ cao drop_z khi rơi."""
     # 1. Bóng tiếp xúc trên sàn (tại z = 0)
     bx0, by0 = float(c) + offset_xy[0], float(r) + offset_xy[1]
     bx1, by1 = bx0 + 1.0, by0 + 1.0
 
-    tl = _proj((bx0, by0, 0.0), tw, th, off, skew)
-    tr = _proj((bx1, by0, 0.0), tw, th, off, skew)
-    br = _proj((bx1, by1, 0.0), tw, th, off, skew)
-    bl = _proj((bx0, by1, 0.0), tw, th, off, skew)
+    if shadow and drop_z >= -0.05:
+        tl = _proj((bx0, by0, 0.0), tw, th, off, skew)
+        tr = _proj((bx1, by0, 0.0), tw, th, off, skew)
+        br = _proj((bx1, by1, 0.0), tw, th, off, skew)
+        bl = _proj((bx0, by1, 0.0), tw, th, off, skew)
 
-    shadow_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-    s_alpha = 130 if is_active else 85
-    pygame.draw.polygon(shadow_surf, (20, 35, 15, s_alpha), [tl, tr, br, bl])
-    surface.blit(shadow_surf, (0, 0))
+        shadow_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        s_alpha = 130 if is_active else 85
+        pygame.draw.polygon(shadow_surf, (20, 35, 15, s_alpha), [tl, tr, br, bl])
+        surface.blit(shadow_surf, (0, 0))
 
     # 2. Đỉnh 3D của cube 1x1x1
-    x0, y0, z0 = bx0, by0, 0.0
-    x1, y1, z1 = bx1, by1, 1.0
+    x0, y0, z0 = bx0, by0, drop_z
+    x1, y1, z1 = bx1, by1, 1.0 + drop_z
     verts = [
         (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
         (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),

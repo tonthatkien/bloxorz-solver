@@ -29,6 +29,7 @@ from gui.render_block import (
     draw_spawn_block,
 )
 from gui.effects import (
+    VOID_FALL_GRAVITY,
     draw_goal_dissolve_block,
     draw_shatter_block,
     draw_void_fall_block,
@@ -66,6 +67,7 @@ def draw_scene(surface: pygame.Surface,
     is_shatter = (fall_state is not None and fall_state[0] == 'shatter')
     is_goal = (fall_state is not None and fall_state[0] == 'goal')
     is_void = (fall_state is not None and fall_state[0] == 'void')
+    is_void_split = (fall_state is not None and fall_state[0] == 'void_split')
 
     # Giữ mask runtime cả khi khối được vẽ riêng trong animation (state=None).
     if bridge_mask is None:
@@ -85,7 +87,22 @@ def draw_scene(surface: pygame.Surface,
     void_drawn = False
     center_r, center_c = 0.0, 0.0
     is_fragile_fall = False
-    if is_void:
+    if is_void_split:
+        _, vr, vc, vaction, vt, sp = fall_state
+        c1, c2 = sp
+        dr, dc = {'U': (-1, 0), 'D': (1, 0), 'L': (0, -1), 'R': (0, 1)}.get(vaction, (0, 0))
+        target_r, target_c = c1[0] + dr, c1[1] + dc
+        center_r, center_c = target_r + 0.5, target_c + 0.5
+        split_row = target_r
+        void_ordered = True
+        is_void = True
+
+        if vt < 0.20:
+            decay = 1.0 - vt / 0.20
+            shake_x = int(round(2.0 * decay * math.sin(vt * 40.0)))
+            shake_y = int(round(1.5 * decay * math.cos(vt * 30.0)))
+            off = (off[0] + shake_x, off[1] + shake_y)
+    elif is_void:
         _, vr, vc, vorient, vaction, vt = fall_state
         rolled = Block(vr, vc, vorient).roll(vaction)
         is_fragile_fall = (rolled.orient == STAND and (rolled.r, rolled.c) in level.fragile)
@@ -115,7 +132,31 @@ def draw_scene(surface: pygame.Surface,
             off = (off[0] + shake_x, off[1] + shake_y)
 
     def draw_void_block() -> None:
-        if void_mode == 'free':
+        if is_void_split:
+            drop_z = -0.5 * VOID_FALL_GRAVITY * vt * vt
+            dist2 = math.hypot(c2[0] - center_r, c2[1] - center_c)
+            t_eff2 = vt - max(0.0, dist2 * 0.045)
+            drop_y2 = int(scr_h * (t_eff2 / 0.45) ** 2) if t_eff2 > 0 else 0
+            off_inact = (off[0], off[1] + drop_y2)
+
+            depth_act = target_r * 1000 + target_c
+            depth_inact = c2[0] * 1000 + c2[1]
+
+            def _draw_act():
+                draw_single_cube(surface, target_r, target_c, True, tw, th, off, skew,
+                                 drop_z=drop_z, shadow=False)
+
+            def _draw_inact():
+                draw_single_cube(surface, c2[0], c2[1], False, tw, th, off_inact, skew,
+                                 shadow=(drop_y2 == 0))
+
+            if depth_act < depth_inact:
+                _draw_act()
+                _draw_inact()
+            else:
+                _draw_inact()
+                _draw_act()
+        elif void_mode == 'free':
             draw_void_fall_block(surface, vr, vc, vorient, vaction, vt, tw, th, off, skew)
         elif void_mode == 'tip':
             draw_void_tip_block(surface, rolled.r, rolled.c, rolled.orient,
