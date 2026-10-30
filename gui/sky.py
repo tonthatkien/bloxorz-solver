@@ -215,24 +215,20 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Mặt trời nhỏ nhắn làm điểm nhấn (rõ hình tròn ở tâm, quầng sáng ấm gọn gàng)
+    # 3. Mặt trời hình tròn rõ nét đường kính 100px, màu vàng bơ pastel êm dịu (không chói gắt)
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    r_disc = max(11, int(15 * scale))
-    r_max_halo = int(44 * scale)
+    r_disc = int(50 * scale)    # Bán kính 50px -> Đường kính 100px
+    r_max_halo = int(72 * scale)
 
-    # Quầng sáng ôm sát đĩa mặt trời
+    # Quầng sáng ôm sát dịu nhẹ, chuyển mờ dần ra bầu trời
     for rad in range(r_max_halo, r_disc, -1):
         t = (rad - r_disc) / float(r_max_halo - r_disc)
-        alpha = int(90 * ((1.0 - t) ** 1.5))
-        g = int(210 + 25 * (1.0 - t))
-        b = int(60 + 70 * (1.0 - t))
-        pygame.draw.circle(sun_surf, (255, g, b, alpha), (sun_cx, sun_cy), rad)
+        alpha = int(60 * ((1.0 - t) ** 1.3))
+        pygame.draw.circle(sun_surf, (255, 238, 185, alpha), (sun_cx, sun_cy), rad)
 
-    # Đĩa tròn mặt trời rõ nét, xinh xắn ở tâm
-    pygame.draw.circle(sun_surf, (255, 205, 30), (sun_cx, sun_cy), r_disc)
-    pygame.draw.circle(sun_surf, (255, 235, 60), (sun_cx, sun_cy), r_disc - 1)
-    pygame.draw.circle(sun_surf, (255, 248, 150), (sun_cx - 2, sun_cy - 2), max(4, r_disc // 3))
+    # Đĩa tròn mặt trời vàng bơ pastel êm dịu, rõ nét
+    pygame.draw.circle(sun_surf, (252, 234, 162), (sun_cx, sun_cy), r_disc)
 
     surf.blit(sun_surf, (0, 0))
     return surf
