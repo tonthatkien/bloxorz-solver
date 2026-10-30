@@ -5,7 +5,13 @@ import pygame
 from game.block import Block
 from game.level_loader import Level
 from game.state import HORIZ, STAND, State, VERT, cells
-from gui.draw_tiles import draw_bridge_tile, draw_fragile_tile, draw_switch, terrain_view
+from gui.draw_tiles import (
+    draw_bridge_tile,
+    draw_fragile_tile,
+    draw_shattering_fragile_tile,
+    draw_switch,
+    terrain_view,
+)
 
 # Re-export các module con để giữ khả năng tương thích 100% với code gọi bên ngoài
 from gui.sky import draw_sky_with_clouds
@@ -78,9 +84,11 @@ def draw_scene(surface: pygame.Surface,
     split_row = -1
     void_drawn = False
     center_r, center_c = 0.0, 0.0
+    is_fragile_fall = False
     if is_void:
         _, vr, vc, vorient, vaction, vt = fall_state
         rolled = Block(vr, vc, vorient).roll(vaction)
+        is_fragile_fall = (rolled.orient == STAND and (rolled.r, rolled.c) in level.fragile)
         # Tâm chấn chấn động tại vị trí khối lăn hụt (hoặc vị trí ô sàn dễ vỡ)
         center_r = rolled.r + (1.0 if rolled.orient == VERT else 0.5)
         center_c = rolled.c + (1.0 if rolled.orient == HORIZ else 0.5)
@@ -122,7 +130,7 @@ def draw_scene(surface: pygame.Surface,
                 continue
 
             x, y = grid_to_iso(r, c, tw, th, off, skew)
-            if is_void:
+            if is_void and not is_fragile_fall:
                 # Tính khoảng cách từ ô (r, c) tới tâm chấn
                 dist = math.hypot(r - center_r, c - center_c)
                 # Jitter giả ngẫu nhiên cố định theo tọa độ để mép vỡ so le tự nhiên
@@ -141,7 +149,10 @@ def draw_scene(surface: pygame.Surface,
                         continue
 
             if (r, c) in level.fragile:
-                draw_fragile_tile(surface, terrain, r, c, x, y, tw, th, skew)
+                if is_fragile_fall and (r, c) == (rolled.r, rolled.c):
+                    draw_shattering_fragile_tile(surface, x, y, tw, th, skew, vt)
+                else:
+                    draw_fragile_tile(surface, terrain, r, c, x, y, tw, th, skew)
             elif (r, c) in bridge_positions:
                 draw_bridge_tile(surface, terrain, r, c, x, y, tw, th, skew)
             elif ch == 'G':

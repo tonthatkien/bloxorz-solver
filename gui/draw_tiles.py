@@ -79,6 +79,53 @@ def draw_fragile_tile(surface: pygame.Surface, level: Level, r: int, c: int,
     _smooth_lines(surface, FRAGILE_EDGE, crack, max(2, tw // 22))
 
 
+def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
+                                 tw: int, th: int, skew: int, vt: float) -> None:
+    """Vẽ ô dễ vỡ nứt vụn thành các mảnh vỡ văng ra và rơi xuống hố vực khi khối đứng lên."""
+    if vt > 0.85:
+        return
+    tl, tr, br, bl = _tile_quad(x, y, tw, th, skew)
+    tc = (x + tw * 0.5 + skew * 0.5, y + th * 0.5)
+
+    # 4 mảnh vỡ tam giác tỏa ra 4 hướng kèm độ rơi gia tốc
+    shards = [
+        ([tl, tr, tc], -12.0, -16.0),  # Bắc / Sau
+        ([tr, br, tc],  18.0,  -4.0),  # Đông / Phải
+        ([br, bl, tc],  12.0,  18.0),  # Nam / Trước
+        ([bl, tl, tc], -18.0,   4.0),  # Tây / Trái
+    ]
+
+    fall_y = 520.0 * vt * vt
+    alpha = max(0, min(255, int(255 * (1.0 - vt * 1.25))))
+
+    shard_surf = surface
+    if alpha < 250:
+        shard_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+
+    top_color = (*FRAGILE_TOP, alpha) if alpha < 250 else FRAGILE_TOP
+    edge_color = (*FRAGILE_EDGE, alpha) if alpha < 250 else FRAGILE_EDGE
+
+    for pts, drift_x, drift_y in shards:
+        off_x = drift_x * vt * 2.2
+        off_y = fall_y + drift_y * vt * 2.2
+        sh_pts = [(int(round(p[0] + off_x)), int(round(p[1] + off_y))) for p in pts]
+        _poly_aa(shard_surf, top_color, sh_pts, edge_color=edge_color)
+
+    # Mảnh vụn nhỏ (debris chips) bắn nhanh ra ngoại vi
+    debris_dirs = [
+        ( 0.25, -0.85), (-0.45, -0.65), ( 0.75,  0.25),
+        (-0.65,  0.45), ( 0.45,  0.85), (-0.25,  0.85)
+    ]
+    for dir_x, dir_y in debris_dirs:
+        px = tc[0] + dir_x * (tw * 0.35 + 45.0 * vt)
+        py = tc[1] + dir_y * (th * 0.35 + 28.0 * vt) + 600.0 * vt * vt
+        size = max(1, int(3 - 2 * vt))
+        pygame.draw.circle(shard_surf, edge_color, (int(round(px)), int(round(py))), size)
+
+    if alpha < 250:
+        surface.blit(shard_surf, (0, 0))
+
+
 def draw_bridge_tile(surface: pygame.Surface, level: Level, r: int, c: int,
                      x: int, y: int, tw: int, th: int, skew: int,
                      opened: bool = True) -> None:
