@@ -1,6 +1,7 @@
 """Bầu trời, mặt trời tỏa nắng, mây trôi và các hòn đảo lơ lửng."""
 from functools import lru_cache
 import math
+import random
 from typing import Optional, Tuple
 import pygame
 
@@ -181,14 +182,14 @@ def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
     return pygame.transform.smoothscale(surf, (iw, ih))
 
 
-_cached_sky_bg: Optional[Tuple[int, int, pygame.Surface]] = None
+_cached_sky_bg: Optional[Tuple[int, int, str, pygame.Surface]] = None
 
 
-def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
+def _render_sky_background(win_w: int, win_h: int, theme) -> pygame.Surface:
     """Vẽ nền trời gradient, vầng mặt trời vàng rực rỡ và hòn đảo cố định vững chãi."""
     surf = pygame.Surface((win_w, win_h))
-    top_color = (68, 138, 212)
-    bot_color = (135, 192, 242)
+    top_color = theme.sky_top
+    bot_color = theme.sky_bot
 
     # 1. Bầu trời chuyển sắc (Gradient Sky)
     for y in range(0, win_h, 2):
@@ -215,33 +216,64 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Mặt trời hình tròn đường kính 70px - vàng cam ấm tự nhiên, không chói gắt, không giống mặt trăng
-    sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
+    # 3. Vẽ mặt trời hoặc mặt trăng theo theme
+    celestial_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    r_disc = int(35 * scale)        # Bán kính 35px -> Đường kính 70px
+    r_disc = int(35 * scale)
     r_max_halo = int(70 * scale)
 
-    # Quầng sáng mờ dần ra bầu trời - tông vàng ấm nhẹ nhàng
-    for rad in range(r_max_halo, r_disc, -1):
-        t = (rad - r_disc) / float(r_max_halo - r_disc)
-        alpha = int(90 * ((1.0 - t) ** 1.4))
-        pygame.draw.circle(sun_surf, (225, 175, 55, alpha), (sun_cx, sun_cy), rad)
+    if theme.sun_disc is not None:
+        # Vẽ mặt trời
+        for rad in range(r_max_halo, r_disc, -1):
+            t = (rad - r_disc) / float(r_max_halo - r_disc)
+            alpha = int(theme.sun_halo_alpha * ((1.0 - t) ** 1.4))
+            pygame.draw.circle(celestial_surf, (*theme.sun_halo, alpha), (sun_cx, sun_cy), rad)
+        pygame.draw.circle(celestial_surf, theme.sun_disc, (sun_cx, sun_cy), r_disc)
 
-    # Đĩa tròn mặt trời: vàng nhạt ấm - đủ nhận ra là mặt trời, không chói gắt, không trắng bạc
-    pygame.draw.circle(sun_surf, (230, 190, 70), (sun_cx, sun_cy), r_disc)
+    elif theme.show_moon:
+        # Vẽ mặt trăng lưỡi liềm
+        moon_r = int(22 * scale)
+        # Halo bạc nhạt
+        if moon_r + 8 > moon_r:
+            for rad in range(moon_r + 8, moon_r, -1):
+                t = (rad - moon_r) / 8.0
+                alpha = int(50 * (1.0 - t))
+                pygame.draw.circle(celestial_surf, (218, 228, 242, alpha), (sun_cx, sun_cy), rad)
+        # Vẽ vòng tròn trăng sáng
+        pygame.draw.circle(celestial_surf, (218, 228, 242), (sun_cx, sun_cy), moon_r)
+        # Đè vòng tròn nhỏ hơn offset màu sky_top để tạo hình khuyết
+        offset_x = int(moon_r * 0.45)
+        pygame.draw.circle(celestial_surf, top_color,
+                           (sun_cx + offset_x, sun_cy - int(moon_r * 0.1)),
+                           int(moon_r * 0.82))
 
-    surf.blit(sun_surf, (0, 0))
+    # 4. Vẽ sao (show_stars)
+    if theme.show_stars:
+        rng = random.Random(77)
+        for _ in range(55):
+            sx = rng.randint(0, win_w - 1)
+            sy = rng.randint(0, win_h // 2)
+            sr = rng.randint(1, 2)
+            salpha = rng.randint(160, 255)
+            pygame.draw.circle(celestial_surf, (255, 255, 255, salpha), (sx, sy), sr)
+
+    surf.blit(celestial_surf, (0, 0))
     return surf
 
 
-def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> None:
+def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int, theme=None) -> None:
     """Vẽ bầu trời, mặt trời tỏa nắng, hòn đảo xa và mây trôi ngang mượt mà."""
+    if theme is None:
+        from gui.theme import GARDEN
+        theme = GARDEN
+
     global _cached_sky_bg
-    if _cached_sky_bg is None or _cached_sky_bg[0] != win_w or _cached_sky_bg[1] != win_h:
-        _cached_sky_bg = (win_w, win_h, _render_sky_background(win_w, win_h))
+    if (_cached_sky_bg is None or _cached_sky_bg[0] != win_w
+            or _cached_sky_bg[1] != win_h or _cached_sky_bg[2] != theme.name):
+        _cached_sky_bg = (win_w, win_h, theme.name, _render_sky_background(win_w, win_h, theme))
 
     # 1. Vẽ nền trời tĩnh (gồm nền gradient, hòn đảo xa, mặt trời tỏa nắng)
-    surface.blit(_cached_sky_bg[2], (0, 0))
+    surface.blit(_cached_sky_bg[3], (0, 0))
 
     scale_x = win_w / 1280.0
     scale_y = win_h / 720.0
@@ -249,6 +281,9 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> Non
 
     ticks = pygame.time.get_ticks()
     t_sec = ticks / 1000.0
+
+    # Cloud alpha scale factor theo theme
+    cloud_alpha_scale = theme.cloud_alpha / 255.0
 
     # 2. Vẽ các đám mây xa (trôi êm dịu, không giật)
     for orig_x, orig_y, cw, ch, alpha_s, speed, is_far in CLOUDS_DRIFT_DATA:
@@ -261,7 +296,10 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> Non
         actual_y = int(orig_y * scale_y)
 
         stamp = _make_cloud_stamp(actual_cw, actual_ch, int(230 * alpha_s))
-        surface.blit(stamp, (int(round(drift_x - stamp.get_width() // 2)),
+        # Scale alpha by theme.cloud_alpha
+        stamp_copy = stamp.copy()
+        stamp_copy.set_alpha(int(stamp.get_alpha() * cloud_alpha_scale))
+        surface.blit(stamp_copy, (int(round(drift_x - stamp.get_width() // 2)),
                              int(round(actual_y - stamp.get_height() * 0.62))))
 
     # 3. Vẽ các đám mây chính bồng bềnh trôi ngang màn hình (Main puffy clouds)
@@ -275,5 +313,32 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> Non
         actual_y = int(orig_y * scale_y)
 
         stamp = _make_cloud_stamp(actual_cw, actual_ch, int(230 * alpha_s))
-        surface.blit(stamp, (int(round(drift_x - stamp.get_width() // 2)),
+        stamp_copy = stamp.copy()
+        stamp_copy.set_alpha(int(stamp.get_alpha() * cloud_alpha_scale))
+        surface.blit(stamp_copy, (int(round(drift_x - stamp.get_width() // 2)),
                              int(round(actual_y - stamp.get_height() * 0.62))))
+
+    # 4. Sét zigzag (show_lightning)
+    if theme.show_lightning and random.randint(0, 179) == 0:
+        lx = random.randint(win_w // 4, 3 * win_w // 4)
+        ly_top = random.randint(0, win_h // 4)
+        ly_bot = random.randint(win_h // 3, win_h // 2)
+        pts = [(lx, ly_top)]
+        steps = random.randint(4, 7)
+        for i in range(1, steps):
+            t = i / steps
+            cy = int(ly_top + t * (ly_bot - ly_top))
+            cx = lx + random.randint(-30, 30)
+            pts.append((cx, cy))
+        pts.append((lx + random.randint(-15, 15), ly_bot))
+        pygame.draw.lines(surface, (220, 230, 255, 180), False, pts, 2)
+
+    # 5. Sương mù đáy màn hình (show_fog)
+    if theme.show_fog:
+        fog_h = win_h // 4
+        fog_surf = pygame.Surface((win_w, fog_h), pygame.SRCALPHA)
+        for fy in range(fog_h):
+            alpha = int(80 * (fy / fog_h))
+            fog_color = (*theme.sky_bot, alpha)
+            pygame.draw.rect(fog_surf, fog_color, (0, fy, win_w, 1))
+        surface.blit(fog_surf, (0, win_h - fog_h))

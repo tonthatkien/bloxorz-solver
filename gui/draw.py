@@ -60,7 +60,8 @@ def draw_scene(surface: pygame.Surface,
                anim_state: Optional[tuple] = None,
                fall_state: Optional[tuple] = None,
                spawn_state: Optional[Tuple[int, int, int, float]] = None,
-               *, bridge_mask: Optional[int] = None) -> None:
+               *, bridge_mask: Optional[int] = None,
+               theme=None) -> None:
     """Vẽ địa hình trước khối và các hiệu ứng D1.
 
     Truyền bridge_mask runtime khi state=None trong animation hoặc khi ẩn khối.
@@ -217,10 +218,10 @@ def draw_scene(surface: pygame.Surface,
             elif (r, c) in bridge_positions:
                 draw_bridge_tile(surface, terrain, r, c, x, y, tw, th, skew)
             elif ch == 'G':
-                _draw_goal_tile(surface, terrain, r, c, x, y, tw, th, skew)
+                _draw_goal_tile(surface, terrain, r, c, x, y, tw, th, skew, theme=theme)
                 goal_garlands.append((x, y))
             else:
-                _draw_floor_tile(surface, terrain, r, c, x, y, tw, th, skew)
+                _draw_floor_tile(surface, terrain, r, c, x, y, tw, th, skew, theme=theme)
             switch = level.switches.get((r, c))
             if switch is not None:
                 draw_switch(surface, switch.type, x, y, tw, th, skew)
@@ -231,7 +232,7 @@ def draw_scene(surface: pygame.Surface,
     # Vẽ vòng hoa quanh miệng hố đích sau khi toàn bộ địa hình sàn đã hoàn tất
     # (Đảm bảo vòng hoa luôn trọn vẹn 100% không bị ô hàng trước che, và rơi đồng bộ theo sàn khi thua)
     for gx, gy in goal_garlands:
-        _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th)
+        _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th, theme=theme)
 
     # Hiệu ứng Vỡ Vụn (Shatter): Các mảnh voxel nổ tung văng ra không gian
     if is_shatter:

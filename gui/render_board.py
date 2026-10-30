@@ -159,47 +159,66 @@ def _draw_tile_vegetation(surface: pygame.Surface, quad: List[Tuple[int, int]],
 
 
 def _draw_floor_tile(surface: pygame.Surface, level: Level, r: int, c: int,
-                     x: int, y: int, tw: int, th: int, skew: int) -> None:
+                     x: int, y: int, tw: int, th: int, skew: int,
+                     *, theme=None) -> None:
     quad = _tile_quad(x, y, tw, th, skew)
     tl, tr, br, bl = quad
     d = TILE_DEPTH
 
+    # Màu sắc theo theme nếu có
+    if theme is not None:
+        soil_front = theme.tile_depth
+        soil_left = tuple(max(0, int(v * 0.8)) for v in theme.tile_depth)
+        grass_rim_f = theme.tile_left
+        grass_rim_l = tuple(max(0, int(v * 0.8)) for v in theme.tile_left)
+        top_c = theme.tile_top if (r + c) % 2 == 0 else tuple(max(0, int(v * 0.9)) for v in theme.tile_top)
+        line_c = theme.tile_left
+    else:
+        soil_front = C['soil_front']
+        soil_left = C['soil_left']
+        grass_rim_f = C['grass_rim_f']
+        grass_rim_l = C['grass_rim_l']
+        top_c = C['grass_light'] if (r + c) % 2 == 0 else C['grass_dark']
+        line_c = C['grass_line']
+
     # Vách mép vực trước
     if r + 1 >= level.rows or level.grid[r + 1][c] == '.':
         front_face = [bl, br, (br[0], br[1] + d), (bl[0], bl[1] + d)]
-        _poly_aa(surface, C['soil_front'], front_face)
+        _poly_aa(surface, soil_front, front_face)
         grass_rim = [bl, br, (br[0], br[1] + 3), (bl[0], bl[1] + 3)]
-        _poly_aa(surface, C['grass_rim_f'], grass_rim)
+        _poly_aa(surface, grass_rim_f, grass_rim)
         # Dây leo rủ xuống mép vực trước
-        _draw_hanging_vines(surface, bl, br, d, ((r * 48271) ^ (c * 99991)) & 0xFFFF)
+        if theme is None or theme.show_vegetation:
+            _draw_hanging_vines(surface, bl, br, d, ((r * 48271) ^ (c * 99991)) & 0xFFFF)
 
     # Vách mép vực trái
     if c - 1 < 0 or level.grid[r][c - 1] == '.':
         left_face = [tl, bl, (bl[0], bl[1] + d), (tl[0], tl[1] + d)]
-        _poly_aa(surface, C['soil_left'], left_face)
-        grass_rim_l = [tl, bl, (bl[0], bl[1] + 3), (tl[0], tl[1] + 3)]
-        _poly_aa(surface, C['grass_rim_l'], grass_rim_l)
+        _poly_aa(surface, soil_left, left_face)
+        grass_rim_l_pts = [tl, bl, (bl[0], bl[1] + 3), (tl[0], tl[1] + 3)]
+        _poly_aa(surface, grass_rim_l, grass_rim_l_pts)
         # Dây leo rủ xuống mép vực trái
-        _draw_hanging_vines(surface, tl, bl, d, ((r * 65537) ^ (c * 179424673)) & 0xFFFF)
+        if theme is None or theme.show_vegetation:
+            _draw_hanging_vines(surface, tl, bl, d, ((r * 65537) ^ (c * 179424673)) & 0xFFFF)
 
-    # Mặt trên thảm cỏ
-    top_c = C['grass_light'] if (r + c) % 2 == 0 else C['grass_dark']
-    line_c = C['grass_line']
-
+    # Mặt trên thảm cỏ/đá
     _poly_aa(surface, top_c, quad, line_c)
 
-    # Điểm xuyết hoa dại và khóm cỏ non (chỉ trên ô cỏ thường)
-    is_bridge = any(b.pos == (r, c) for b in level.bridges.values())
-    if (not is_bridge and
-        (r, c) not in level.fragile and
-        (r, c) not in level.switches and
-        level.grid[r][c] not in ('.', 'G')):
-        h = ((r * 73856093) ^ (c * 19349663)) & 0xFFFFFFFF
-        _draw_tile_vegetation(surface, quad, tw, th, skew, h)
+    # Điểm xuyết hoa dại và khóm cỏ non (chỉ khi theme cho phép)
+    if theme is None or theme.show_vegetation:
+        is_bridge = any(b.pos == (r, c) for b in level.bridges.values())
+        if (not is_bridge and
+            (r, c) not in level.fragile and
+            (r, c) not in level.switches and
+            level.grid[r][c] not in ('.', 'G')):
+            h = ((r * 73856093) ^ (c * 19349663)) & 0xFFFFFFFF
+            _draw_tile_vegetation(surface, quad, tw, th, skew, h)
 
 
 def _draw_goal_garland(surface: pygame.Surface, quad: List[Tuple[int, int]],
-                       tw: int, th: int) -> None:
+                       tw: int, th: int, *, theme=None) -> None:
+    if theme is not None and not theme.show_garland:
+        return
     """Vẽ vòng hoa kết từ cành lá và hoa dại quanh miệng hố đích (không có hào quang)."""
     tl, tr, br, bl = quad
 
@@ -271,7 +290,8 @@ def _draw_goal_garland(surface: pygame.Surface, quad: List[Tuple[int, int]],
 
 
 def _draw_goal_tile(surface: pygame.Surface, level: Level, r: int, c: int,
-                    x: int, y: int, tw: int, th: int, skew: int) -> None:
+                    x: int, y: int, tw: int, th: int, skew: int,
+                    *, theme=None) -> None:
     """Vẽ hố đích kèm vòng hoa trang trí (không có hào quang)."""
     quad = _tile_quad(x, y, tw, th, skew)
     tl, tr, br, bl = quad
@@ -296,7 +316,7 @@ def _draw_goal_tile(surface: pygame.Surface, level: Level, r: int, c: int,
     p4 = bl
 
     # 1. Đáy lỗ nhìn xuyên thấu xuống nền dưới
-    sky_under = (118, 180, 238)
+    sky_under = theme.sky_bot if theme is not None else (118, 180, 238)
     _poly_aa(surface, sky_under, [p1, p2, p3, p4])
 
     # 2. Vách đất phía sau (Back Earth Wall): tl -> tr -> p2 -> p1
