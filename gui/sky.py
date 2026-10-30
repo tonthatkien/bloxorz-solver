@@ -1,4 +1,4 @@
-"""Bầu trời, mặt trời, tia nắng, mây trôi và các hòn đảo lơ lửng."""
+"""Bầu trời, mặt trời tỏa nắng, mây trôi và các hòn đảo lơ lửng."""
 from functools import lru_cache
 import math
 from typing import Optional, Tuple
@@ -27,12 +27,12 @@ CLOUDS_DRIFT_DATA = [
     ( 960, 630, 280, 70, 0.84, 26.0, False),
 ]
 
-# Cấu hình các hòn đảo lơ lửng phía xa (vững chãi, hòa cùng nền trời)
+# Cấu hình các hòn đảo lơ lửng phía xa (bố trí thoáng, thơ mộng)
 ISLANDS_DATA = [
     # (rel_x, rel_y, iw, ih, variant)
-    (0.08, 0.50, 105, 68, 0),   # Đảo trái trung tâm (có cây bonsai)
-    (0.91, 0.38,  88, 56, 1),   # Đảo phải (có khóm cây)
-    (0.85, 0.72,  68, 44, 2),   # Đảo nhỏ góc phải dưới
+    (0.08, 0.50, 115, 76, 0),   # Đảo trái trung tâm (có 2 cây cổ thụ Ghibli bồng bềnh)
+    (0.91, 0.38,  95, 64, 1),   # Đảo phải (có ngọn thông thanh thoát & hoa dại)
+    (0.85, 0.72,  75, 50, 2),   # Đảo nhỏ góc phải dưới (đồi cỏ & tảng đá rêu)
 ]
 
 
@@ -67,68 +67,116 @@ def _make_cloud_stamp(cw: int, ch: int, alpha: int) -> pygame.Surface:
 
 @lru_cache(maxsize=16)
 def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
-    """Tạo texture hòn đảo đá/cỏ mini lơ lửng phía xa."""
+    """Tạo texture hòn đảo đá/cỏ mini lơ lửng phía xa (phong cách Ghibli bồng bềnh, thơ mộng)."""
     scale = 3
     sw = iw * scale
     sh = ih * scale
     surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
     cx = sw // 2
 
-    # 1. Đáy đá nhọn treo lơ lửng (Rocky inverted cone)
-    crag_tip = (int(cx - sw * 0.04), int(sh * 0.84))
-    left_edge = (int(cx - sw * 0.42), int(sh * 0.38))
-    right_edge = (int(cx + sw * 0.42), int(sh * 0.38))
-    mid_top = (cx, int(sh * 0.38))
+    # 1. Đệm mây trắng ôm chân đảo (Cloud cradle cushion)
+    c_w = int(sw * 0.76)
+    c_h = int(sh * 0.28)
+    c_x = cx - c_w // 2
+    c_y = int(sh * 0.64)
+    pygame.draw.ellipse(surf, (245, 250, 255, 180), (c_x, c_y, c_w, c_h))
+    pygame.draw.ellipse(surf, (255, 255, 255, 220), (c_x + int(c_w * 0.12), c_y - int(c_h * 0.25), int(c_w * 0.44), int(c_h * 0.85)))
+    pygame.draw.ellipse(surf, (255, 255, 255, 220), (c_x + int(c_w * 0.44), c_y - int(c_h * 0.20), int(c_w * 0.42), int(c_h * 0.80)))
 
-    # Mặt vách đá tối (bên trái - chìm trong bóng râm)
-    pts_left = [left_edge, (int(cx - sw * 0.22), int(sh * 0.62)), crag_tip, mid_top]
-    pygame.draw.polygon(surf, (82, 62, 50), pts_left)
+    # 2. Thân đảo dạng đá phong hóa xếp tầng (Layered rock strata)
+    # Tầng đá trên cùng
+    poly_top = [
+        (int(cx - sw * 0.44), int(sh * 0.35)),
+        (int(cx + sw * 0.44), int(sh * 0.35)),
+        (int(cx + sw * 0.36), int(sh * 0.54)),
+        (int(cx - sw * 0.36), int(sh * 0.54)),
+    ]
+    pygame.draw.polygon(surf, (142, 105, 75), poly_top)
+    pygame.draw.polygon(surf, (110, 80, 58), [poly_top[0], (cx, int(sh * 0.35)), (cx - int(sw * 0.05), int(sh * 0.54)), poly_top[3]])
 
-    # Mặt vách đá sáng (bên phải - đón ánh mặt trời từ góc trên phải)
-    pts_right = [mid_top, crag_tip, (int(cx + sw * 0.22), int(sh * 0.60)), right_edge]
-    pygame.draw.polygon(surf, (118, 90, 72), pts_right)
+    # Tầng đá giữa
+    poly_mid = [
+        (int(cx - sw * 0.34), int(sh * 0.53)),
+        (int(cx + sw * 0.34), int(sh * 0.53)),
+        (int(cx + sw * 0.20), int(sh * 0.72)),
+        (int(cx - sw * 0.20), int(sh * 0.72)),
+    ]
+    pygame.draw.polygon(surf, (125, 90, 64), poly_mid)
+    pygame.draw.polygon(surf, (95, 68, 48), [poly_mid[0], (cx, int(sh * 0.53)), (cx - int(sw * 0.04), int(sh * 0.72)), poly_mid[3]])
 
-    # Viên đá nhỏ rời lơ lửng dưới đáy đảo
-    pygame.draw.polygon(surf, (95, 75, 60), [
-        (int(cx - sw * 0.05), int(sh * 0.89)),
-        (int(cx + sw * 0.02), int(sh * 0.88)),
-        (int(cx - sw * 0.01), int(sh * 0.94)),
-    ])
+    # Mỏm đá dưới cùng thu nhọn tự nhiên
+    poly_tip = [
+        (int(cx - sw * 0.18), int(sh * 0.71)),
+        (int(cx + sw * 0.18), int(sh * 0.71)),
+        (int(cx + sw * 0.02), int(sh * 0.86)),
+        (int(cx - sw * 0.06), int(sh * 0.86)),
+    ]
+    pygame.draw.polygon(surf, (105, 75, 52), poly_tip)
+    pygame.draw.polygon(surf, (78, 55, 38), [poly_tip[0], (cx, int(sh * 0.71)), (int(cx - sw * 0.06), int(sh * 0.86))])
 
-    # 2. Mặt thảm cỏ xanh phẳng trên đỉnh đảo
-    grass_rect = (int(cx - sw * 0.44), int(sh * 0.26), int(sw * 0.88), int(sh * 0.24))
-    pygame.draw.ellipse(surf, (108, 162, 98), (grass_rect[0], grass_rect[1] + 4, grass_rect[2], grass_rect[3]))
-    pygame.draw.ellipse(surf, (132, 185, 120), grass_rect)
-    pygame.draw.ellipse(surf, (155, 208, 142), (int(cx - sw * 0.36), int(sh * 0.27), int(sw * 0.72), int(sh * 0.16)))
+    # Dây leo xanh rủ từ mép đá
+    pygame.draw.lines(surf, (75, 145, 55), False, [
+        (int(cx - sw * 0.38), int(sh * 0.37)),
+        (int(cx - sw * 0.37), int(sh * 0.48)),
+        (int(cx - sw * 0.39), int(sh * 0.58)),
+    ], 2)
+    pygame.draw.lines(surf, (85, 160, 65), False, [
+        (int(cx + sw * 0.28), int(sh * 0.37)),
+        (int(cx + sw * 0.30), int(sh * 0.46)),
+        (int(cx + sw * 0.27), int(sh * 0.55)),
+    ], 2)
 
-    # 3. Cây cối / tiểu cảnh nhỏ trên đảo
+    # 3. Mặt thảm cỏ xanh mướt bo tròn bồng bềnh
+    grass_w = int(sw * 0.92)
+    grass_h = int(sh * 0.25)
+    gx = cx - grass_w // 2
+    gy = int(sh * 0.24)
+    pygame.draw.ellipse(surf, (95, 155, 75), (gx, gy + 4, grass_w, grass_h))
+    pygame.draw.ellipse(surf, (128, 198, 98), (gx, gy, grass_w, grass_h))
+    pygame.draw.ellipse(surf, (162, 228, 126), (gx + int(grass_w * 0.15), gy + 2, int(grass_w * 0.70), int(grass_h * 0.65)))
+
+    # 4. Cây cối & tiểu cảnh xinh xắn trên đỉnh đảo
     if variant == 0:
-        # Cây thông/bonsai nhỏ
-        tx, ty = cx - 8, int(sh * 0.28)
-        pygame.draw.rect(surf, (95, 65, 42), (tx - 2, ty - 22, 5, 22))
-        pygame.draw.circle(surf, (82, 148, 75), (tx - 8, ty - 26), 14)
-        pygame.draw.circle(surf, (105, 175, 95), (tx + 6, ty - 28), 16)
-        pygame.draw.circle(surf, (125, 195, 110), (tx, ty - 34), 13)
-    elif variant == 1:
-        # 2 khóm cây lùn
-        tx1, ty1 = cx - 18, int(sh * 0.30)
-        pygame.draw.rect(surf, (95, 65, 42), (tx1 - 2, ty1 - 16, 4, 16))
-        pygame.draw.circle(surf, (95, 165, 88), (tx1, ty1 - 18), 12)
-        tx2, ty2 = cx + 14, int(sh * 0.31)
-        pygame.draw.rect(surf, (95, 65, 42), (tx2 - 2, ty2 - 12, 4, 12))
-        pygame.draw.circle(surf, (115, 185, 102), (tx2, ty2 - 14), 10)
-    else:
-        # Đồi cỏ nhỏ với cụm hoa trắng
-        pygame.draw.ellipse(surf, (142, 198, 128), (cx - 16, int(sh * 0.22), 32, 14))
-        pygame.draw.circle(surf, (255, 255, 245), (cx - 8, int(sh * 0.24)), 3)
-        pygame.draw.circle(surf, (255, 255, 245), (cx + 6, int(sh * 0.25)), 3)
+        # Cây cổ thụ tán tròn bồng bềnh phong cách Ghibli
+        tx, ty = cx - 6, int(sh * 0.26)
+        pygame.draw.polygon(surf, (110, 75, 48), [
+            (tx - 3, ty), (tx + 3, ty), (tx + 2, ty - 22), (tx - 2, ty - 22)
+        ])
+        pygame.draw.circle(surf, (68, 140, 62), (tx - 10, ty - 28), 16)
+        pygame.draw.circle(surf, (82, 165, 75), (tx + 8, ty - 30), 18)
+        pygame.draw.circle(surf, (110, 195, 95), (tx - 4, ty - 38), 17)
+        pygame.draw.circle(surf, (145, 230, 125), (tx - 2, ty - 41), 11)
+        pygame.draw.circle(surf, (255, 235, 120), (tx - 6, ty - 32), 2)
+        pygame.draw.circle(surf, (255, 160, 180), (tx + 6, ty - 34), 2)
 
-    # 4. Vạt mây quấn quanh chân đảo
-    cloud_w = int(sw * 0.46)
-    cloud_h = int(sh * 0.16)
-    cloud_surf = pygame.Surface((cloud_w, cloud_h), pygame.SRCALPHA)
-    pygame.draw.ellipse(cloud_surf, (245, 250, 255, 165), (0, 0, cloud_w, cloud_h))
-    surf.blit(cloud_surf, (int(cx - sw * 0.24), int(sh * 0.50)))
+        # Cây nhỏ thứ 2 bên cạnh
+        tx2 = cx + 20
+        pygame.draw.polygon(surf, (110, 75, 48), [
+            (tx2 - 2, ty + 2), (tx2 + 2, ty + 2), (tx2 + 1, ty - 12), (tx2 - 1, ty - 12)
+        ])
+        pygame.draw.circle(surf, (82, 165, 75), (tx2, ty - 16), 11)
+        pygame.draw.circle(surf, (130, 215, 115), (tx2, ty - 18), 7)
+
+    elif variant == 1:
+        # Ngọn thông cao thanh thoát & khóm hoa dại
+        tx = cx + 8
+        ty = int(sh * 0.27)
+        pygame.draw.rect(surf, (105, 72, 45), (tx - 2, ty - 24, 4, 24))
+        pygame.draw.polygon(surf, (65, 135, 68), [(tx, ty - 38), (tx - 15, ty - 20), (tx + 15, ty - 20)])
+        pygame.draw.polygon(surf, (85, 165, 88), [(tx, ty - 34), (tx - 12, ty - 18), (tx + 12, ty - 18)])
+        pygame.draw.polygon(surf, (115, 200, 110), [(tx, ty - 40), (tx - 9, ty - 26), (tx + 9, ty - 26)])
+        pygame.draw.circle(surf, (255, 255, 245), (cx - 14, int(sh * 0.24)), 3)
+        pygame.draw.circle(surf, (255, 215, 50), (cx - 8, int(sh * 0.25)), 3)
+        pygame.draw.circle(surf, (255, 140, 180), (cx - 20, int(sh * 0.25)), 3)
+
+    else:
+        # Đồi cỏ hoa dại và tảng đá cuội mini
+        rx = cx + 10
+        ry = int(sh * 0.24)
+        pygame.draw.ellipse(surf, (140, 145, 150), (rx - 8, ry - 6, 16, 10))
+        pygame.draw.ellipse(surf, (175, 180, 185), (rx - 6, ry - 6, 12, 6))
+        for ox, oy, col in [(-12, -2, (255, 255, 245)), (-4, 1, (255, 220, 60)), (2, -3, (255, 140, 170))]:
+            pygame.draw.circle(surf, col, (cx + ox, int(sh * 0.24) + oy), 3)
 
     return pygame.transform.smoothscale(surf, (iw, ih))
 
@@ -137,7 +185,7 @@ _cached_sky_bg: Optional[Tuple[int, int, pygame.Surface]] = None
 
 
 def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
-    """Vẽ nền trời gradient, vầng mặt trời ở góc trên-phải, tia nắng xiên và hòn đảo cố định vững chãi."""
+    """Vẽ nền trời gradient, vầng mặt trời vàng rực rỡ và hòn đảo cố định vững chãi."""
     surf = pygame.Surface((win_w, win_h))
     top_color = (68, 138, 212)
     bot_color = (135, 192, 242)
@@ -154,13 +202,10 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
     scale_y = win_h / 720.0
     scale = min(scale_x, scale_y)
 
-    # Đặt mặt trời ở góc TRÊN - PHẢI (Top-Right): khớp 100% hướng chiếu sáng vật lý
-    # của khối gỗ (mặt front & right đón nắng, mặt left chìm trong bóng tối)
     sun_cx = int(980 * scale_x)
     sun_cy = int(95 * scale_y)
 
     # 2. Vẽ các hòn đảo mini lơ lửng phía xa cố định trong background
-    # (Đứng vững chãi, không bị rung giật điểm ảnh)
     for rel_x, rel_y, iw, ih, variant in ISLANDS_DATA:
         actual_iw = max(20, int(iw * scale))
         actual_ih = max(15, int(ih * scale))
@@ -170,23 +215,44 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
         surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
                                  int(base_y - island_stamp.get_height() * 0.5)))
 
-    # 3. Vầng mặt trời tỏa sáng ấm áp (Warm Radiant Sun)
+    # 3. Vầng mặt trời vàng rực rỡ, tỏa nắng ấm áp (Radiant Warm Golden Sun)
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    num_steps = 24
-    max_radius = int(220 * scale)
+    # A. Vầng hào quang tỏa rộng nhiều tầng (Warm Golden Aura)
+    num_steps = 26
+    max_radius = int(240 * scale)
     for i in range(num_steps, 0, -1):
         ratio = i / float(num_steps)
-        rad = int(max_radius * (ratio ** 1.35))
-        alpha = int(105 * ((1.0 - ratio) ** 1.7))
+        rad = int(max_radius * (ratio ** 1.30))
+        r_col = 255
+        g_col = int(180 + 55 * ratio)
+        b_col = int(30 + 100 * ratio)
+        alpha = int(125 * ((1.0 - ratio) ** 1.6))
         if rad > 0 and alpha > 0:
-            pygame.draw.circle(sun_surf, (255, 232, 155, alpha), (sun_cx, sun_cy), rad)
+            pygame.draw.circle(sun_surf, (r_col, g_col, b_col, alpha), (sun_cx, sun_cy), rad)
 
-    # Vầng sáng trung tâm (Corona glow)
-    pygame.draw.circle(sun_surf, (255, 245, 195, 180), (sun_cx, sun_cy), max(16, int(26 * scale)))
+    # B. Vòng tia hào quang tỏa tròn (Sun Corona Rays / Starburst)
+    num_rays = 12
+    r_inner = 24 * scale
+    r_outer = 48 * scale
+    ray_width_angle = math.pi / 18.0
+    for k in range(num_rays):
+        angle = k * (2.0 * math.pi / num_rays)
+        p_tip = (sun_cx + int(r_outer * math.cos(angle)),
+                 sun_cy + int(r_outer * math.sin(angle)))
+        p_b1 = (sun_cx + int(r_inner * math.cos(angle - ray_width_angle)),
+                sun_cy + int(r_inner * math.sin(angle - ray_width_angle)))
+        p_b2 = (sun_cx + int(r_inner * math.cos(angle + ray_width_angle)),
+                sun_cy + int(r_inner * math.sin(angle + ray_width_angle)))
+        pygame.draw.polygon(sun_surf, (255, 215, 65, 140), [p_tip, p_b1, p_b2])
 
-    # Lõi mặt trời sáng ấm
-    pygame.draw.circle(sun_surf, (255, 255, 245, 255), (sun_cx, sun_cy), max(12, int(18 * scale)))
+    # C. Quầng sáng corona bao quanh đĩa mặt trời
+    pygame.draw.circle(sun_surf, (255, 210, 50, 200), (sun_cx, sun_cy), max(18, int(30 * scale)))
+
+    # D. Đĩa mặt trời màu vàng ấm rực rỡ (Golden Sun Core)
+    pygame.draw.circle(sun_surf, (255, 228, 60, 255), (sun_cx, sun_cy), max(14, int(22 * scale)))
+    # Tâm đĩa sáng bừng
+    pygame.draw.circle(sun_surf, (255, 250, 160, 255), (sun_cx, sun_cy), max(9, int(14 * scale)))
 
     surf.blit(sun_surf, (0, 0))
     return surf
@@ -198,7 +264,7 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> Non
     if _cached_sky_bg is None or _cached_sky_bg[0] != win_w or _cached_sky_bg[1] != win_h:
         _cached_sky_bg = (win_w, win_h, _render_sky_background(win_w, win_h))
 
-    # 1. Vẽ nền trời tĩnh (gồm nền gradient, hòn đảo xa, mặt trời + tia nắng xiên)
+    # 1. Vẽ nền trời tĩnh (gồm nền gradient, hòn đảo xa, mặt trời tỏa nắng)
     surface.blit(_cached_sky_bg[2], (0, 0))
 
     scale_x = win_w / 1280.0
@@ -215,7 +281,6 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> Non
         actual_cw = max(20, int(cw * scale))
         actual_ch = max(10, int(ch * scale))
         wrap_w = win_w + actual_cw * 2
-        # Mây trôi êm theo chiều gió từ phải qua trái (hướng ánh sáng mặt trời)
         drift_x = (int(orig_x * scale_x) - speed * scale_x * t_sec) % wrap_w - actual_cw
         actual_y = int(orig_y * scale_y)
 

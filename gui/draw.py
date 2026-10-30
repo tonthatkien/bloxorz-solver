@@ -22,6 +22,8 @@ from gui.render_board import (
     calculate_iso_layout,
     _draw_floor_tile,
     _draw_goal_tile,
+    _tile_quad,
+    _draw_goal_garland,
 )
 from gui.render_block import (
     draw_block,
@@ -222,6 +224,14 @@ def draw_scene(surface: pygame.Surface,
         if is_void and void_ordered and not void_drawn and r >= split_row:
             draw_void_block()
             void_drawn = True
+
+    # Vẽ vòng hoa quanh miệng hố đích sau khi toàn bộ địa hình sàn đã hoàn tất
+    # (Đảm bảo vòng hoa luôn trọn vẹn 100% không bao giờ bị các ô hàng trước che mất)
+    for gr in range(level.rows):
+        for gc in range(level.cols):
+            if terrain.grid[gr][gc] == 'G':
+                gx, gy = grid_to_iso(gr, gc, tw, th, off, skew)
+                _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th)
 
     # Hiệu ứng Vỡ Vụn (Shatter): Các mảnh voxel nổ tung văng ra không gian
     if is_shatter:

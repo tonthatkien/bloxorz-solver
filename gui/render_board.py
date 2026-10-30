@@ -312,6 +312,3 @@ def _draw_goal_tile(surface: pygame.Surface, level: Level, r: int, c: int,
     # 5. Viền miệng hố
     pygame.gfxdraw.polygon(surface, quad, C['grass_line'])
     pygame.gfxdraw.aapolygon(surface, quad, C['grass_line'])
-
-    # 6. Vòng hoa trang trí quanh miệng hố đích (Flower Garland - Không hào quang)
-    _draw_goal_garland(surface, quad, tw, th)
