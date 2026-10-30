@@ -156,7 +156,11 @@ def run(level_path: str) -> None:
     FALL_VOID_DURATION_MS = 900
     SPAWN_DURATION_MS = 460
     SPAWN_HEIGHT = 8.5
-    REPLAY_STEP_DELAY_MS = 60
+    REPLAY_STEP_DELAY_MS = 70
+    REPLAY_SPLIT_PAUSE_MS = 650
+    REPLAY_SWAP_PAUSE_MS = 380
+    REPLAY_MERGE_PAUSE_MS = 480
+    replay_speed = 1.0
 
     def _ease(t: float) -> float:
         return t * t * (3.0 - 2.0 * t)
@@ -310,7 +314,7 @@ def run(level_path: str) -> None:
         is_replaying = True
         replay_actions = list(last_result.path)
         replay_index = 0
-        replay_last_time = pygame.time.get_ticks() + 120
+        replay_last_time = pygame.time.get_ticks() + int(200 / replay_speed)
 
     # Top-right header buttons
     btn_help     = Button((WINDOW_SIZE[0] - 24 - 120 - 12 - 110 - 12 - 40, 20, 40, 38),
@@ -329,11 +333,13 @@ def run(level_path: str) -> None:
                      'UCS', font_dock_b, border_radius=8)
     btn_astar = Button((DOCK_X + 14 + 174, DOCK_Y + 6, 52, 32),
                        'A*', font_dock_b, border_radius=8)
-    btn_action = Button((DOCK_X + 14 + 236, DOCK_Y + 6, 130, 32),
+    btn_action = Button((DOCK_X + 14 + 236, DOCK_Y + 6, 126, 32),
                         'Replay Solution', font_dock_b, border_radius=8, enabled=False)
+    btn_speed  = Button((DOCK_X + 14 + 236 + 132, DOCK_Y + 6, 52, 32),
+                        '1.0x', font_dock_b, border_radius=8, enabled=True)
 
-    stats_box_x = DOCK_X + 14 + 236 + 140
-    stats_box_w = 460
+    stats_box_x = DOCK_X + 14 + 236 + 132 + 58
+    stats_box_w = DOCK_W - (stats_box_x - DOCK_X) - 14
 
     # Win / Loss Banner Buttons
     banner_w, banner_h = 460, 220
@@ -389,6 +395,7 @@ def run(level_path: str) -> None:
                 btn_ucs.is_hovered(mouse_pos) or
                 btn_astar.is_hovered(mouse_pos) or
                 btn_action.is_hovered(mouse_pos) or
+                btn_speed.is_hovered(mouse_pos) or
                 (won and (btn_win_restart.is_hovered(mouse_pos) or
                           btn_win_new_game.is_hovered(mouse_pos))) or
                 (lost and (btn_loss_restart.is_hovered(mouse_pos) or
@@ -486,6 +493,14 @@ def run(level_path: str) -> None:
                         is_replaying = False
                     else:
                         _start_replay()
+                elif btn_speed.is_clicked(event):
+                    if replay_speed == 1.0:
+                        replay_speed = 0.5
+                    elif replay_speed == 0.5:
+                        replay_speed = 2.0
+                    else:
+                        replay_speed = 1.0
+                    btn_speed.text = f"{replay_speed}x"
                 elif won:
                     if btn_win_restart.is_clicked(event):
                         load_level_and_reset(current_level_path)
@@ -500,21 +515,45 @@ def run(level_path: str) -> None:
         # Replay Progression
         if is_replaying and not animating and not falling_goal and not falling_void and not spawning:
             now = pygame.time.get_ticks()
-            if now - replay_last_time >= REPLAY_STEP_DELAY_MS:
+            if now >= replay_last_time:
                 if replay_index < len(replay_actions):
                     act = replay_actions[replay_index]
                     replay_index += 1
-                    replay_last_time = now
-                    ns, anim_is_void = _step(state, act)
-                    if ns is not None:
-                        animating = True
-                        anim_start_r = state.r
-                        anim_start_c = state.c
-                        anim_start_orient = state.orient
-                        anim_action = act
-                        anim_next_state = ns
-                        anim_start_time = now
-                        buffered_action = None
+
+                    cur_anim_dur = int(ANIM_DURATION_MS / replay_speed)
+                    cur_step_delay = int(REPLAY_STEP_DELAY_MS / replay_speed)
+
+                    if act == 'S':
+                        # Hành động Space Swap: đổi cube đang điều khiển tức thì
+                        ns, _ = _step(state, 'S')
+                        if ns is not None:
+                            state = ns
+                            move_count += 1
+                            anim_is_split = True
+                            anim_split_tuple = state.split
+                            # Tạm dừng nhẹ để người xem thấy rõ khối active vừa đổi chất liệu
+                            replay_last_time = now + int(REPLAY_SWAP_PAUSE_MS / replay_speed)
+                    else:
+                        ns, anim_is_void = _step(state, act)
+                        if ns is not None:
+                            animating = True
+                            if state.split is not None:
+                                anim_is_split = True
+                                anim_start_r, anim_start_c = state.split[0]
+                                anim_start_orient = STAND
+                                anim_split_tuple = state.split
+                            else:
+                                anim_is_split = False
+                                anim_start_r = state.r
+                                anim_start_c = state.c
+                                anim_start_orient = state.orient
+                                anim_split_tuple = None
+
+                            anim_action = act
+                            anim_next_state = ns
+                            anim_start_time = now
+                            buffered_action = None
+                            replay_last_time = now + cur_anim_dur + cur_step_delay
                 else:
                     is_replaying = False
 
@@ -538,7 +577,8 @@ def run(level_path: str) -> None:
         anim_progress = 0.0
         if animating:
             now = pygame.time.get_ticks()
-            raw_t = (now - anim_start_time) / ANIM_DURATION_MS
+            cur_anim_dur = int(ANIM_DURATION_MS / (replay_speed if is_replaying else 1.0))
+            raw_t = (now - anim_start_time) / cur_anim_dur
             if raw_t >= 1.0:
                 animating = False
                 move_count += 1
@@ -549,7 +589,25 @@ def run(level_path: str) -> None:
                     buffered_action = None
                     is_replaying = False
                 else:
+                    was_split = (state.split is not None)
                     state = anim_next_state
+                    is_split = (state.split is not None)
+
+                    # Dramatic Pause khi phát hiện sự kiện Tách hoặc Ghép trong Replay
+                    if is_replaying:
+                        if not was_split and is_split:
+                            # Vừa đứng lên Split Switch: Tách đôi thành công!
+                            replay_last_time = max(
+                                replay_last_time,
+                                now + int(REPLAY_SPLIT_PAUSE_MS / replay_speed)
+                            )
+                        elif was_split and not is_split:
+                            # Hai cube vừa kề cạnh và tự ghép (Merge) thành khối 1x1x2!
+                            replay_last_time = max(
+                                replay_last_time,
+                                now + int(REPLAY_MERGE_PAUSE_MS / replay_speed)
+                            )
+
                     if game.is_goal(state):
                         falling_goal = True
                         fall_start_time = pygame.time.get_ticks()
@@ -690,6 +748,19 @@ def run(level_path: str) -> None:
             btn_action.text_color = (20, 83, 45)
             btn_action.text_color_hover = (15, 23, 42)
         btn_action.draw(screen, mouse_pos)
+
+        # Speed Button (0.5x, 1.0x, 2.0x)
+        if replay_speed == 0.5:
+            btn_speed.bg_color = (254, 243, 199)
+            btn_speed.text_color = (180, 83, 9)
+        elif replay_speed == 2.0:
+            btn_speed.bg_color = (224, 231, 255)
+            btn_speed.text_color = (67, 56, 202)
+        else:
+            btn_speed.bg_color = (248, 250, 252)
+            btn_speed.text_color = (30, 41, 59)
+        btn_speed.text = f"{replay_speed}x"
+        btn_speed.draw(screen, mouse_pos)
 
         # Dock Stats Pill
         _draw_dock_stats(screen, stats_box_x, DOCK_Y + 6, stats_box_w, 32,
