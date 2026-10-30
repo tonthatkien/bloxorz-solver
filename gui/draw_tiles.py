@@ -89,7 +89,7 @@ def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
         return
 
     # 5 Tảng đất 3D dày cộp (chunky earth blocks) ghép kín khít ô sàn ban đầu
-    # Mỗi tảng là một khối đất có độ dày 14px và các vách cắt đất màu nâu sẫm
+    # Mỗi tảng là một khối đất dày 16px với các vách cắt đất màu nâu sẫm
     chunks_def = [
         # (uv_polygon, drift_x, drift_y, rot_speed, is_center)
         ([(0.0, 0.0), (0.55, 0.0), (0.48, 0.38), (0.0, 0.45)],
@@ -115,9 +115,10 @@ def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
     soil_l_col = (*SOIL_LEFT, alpha) if alpha < 250 else SOIL_LEFT
     soil_d_col = (*SOIL_DARK, alpha) if alpha < 250 else SOIL_DARK
 
-    # Độ dày tầng đất thực tế (14px như sàn game, thu nhẹ khi rơi sâu)
-    soil_depth = max(3, int(14 * (1.0 - vt * 0.6)))
+    # Độ dày tầng đất thực tế (16px như sàn game, thu nhẹ khi rơi sâu)
+    soil_depth = max(4, int(16 * (1.0 - vt * 0.5)))
 
+    rendered_chunks = []
     for uv_pts, dir_x, dir_y, rot_speed, is_center in chunks_def:
         pts = [_point(x, y, tw, th, skew, u, v) for u, v in uv_pts]
         n_pts = len(pts)
@@ -141,39 +142,49 @@ def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
             ry = cy + (px - cx) * sin_a + (py - cy) * cos_a + off_y
             rot_top.append((int(round(rx)), int(round(ry))))
 
+        rendered_chunks.append((cy + off_y, rot_top))
+
+    # Sắp xếp vẽ từ sau ra trước (Painter's Algorithm theo trục Y)
+    rendered_chunks.sort(key=lambda item: item[0])
+
+    for _, rot_top in rendered_chunks:
+        n_pts = len(rot_top)
         # 1. Vẽ các vách đất bên 3D (3D soil walls) lộ ra khi tảng đất bị nứt tách
         for i in range(n_pts):
             p1 = rot_top[i]
             p2 = rot_top[(i + 1) % n_pts]
             dx = p2[0] - p1[0]
             dy = p2[1] - p1[1]
-            if dx > 0:  # Cạnh hướng về phía camera
+            vis = -dx - 0.35 * dy
+            if vis > 0:  # Cạnh hướng về phía camera
                 wall_quad = [p1, p2, (p2[0], p2[1] + soil_depth), (p1[0], p1[1] + soil_depth)]
-                # Chiếu sáng vách đất theo hướng nghiêng: vách trước sáng hơn vách sườn
-                wall_col = soil_f_col if dy > 0 else soil_l_col
-                _poly_aa(shard_surf, wall_col, wall_quad, edge_color=soil_d_col)
+                wall_col = soil_f_col if abs(dx) >= abs(dy) else soil_l_col
+                _poly_aa(shard_surf, wall_col, wall_quad, edge_color=wall_col)
+                pygame.draw.line(shard_surf, soil_d_col,
+                                 (p1[0], p1[1] + soil_depth),
+                                 (p2[0], p2[1] + soil_depth), 1)
 
         # 2. Vẽ mặt trên thảm đất nứt (Fragile clay top surface)
         _poly_aa(shard_surf, top_col, rot_top, edge_color=edge_col)
 
-    # 3. Các cục đất vụn (Chunky soil crumbs / pebbles) lả tả rơi theo trọng lực
+    # 3. Các cục đất vụn dạng khối 3D (Chunky 3D soil clods) lả tả rơi theo trọng lực
     soil_crumbs = (
-        ( 0.35, -0.28,  6.0, -4.0, (128,  92,  62), 4, 3),
-        (-0.28, -0.32, -5.0, -3.0, (105,  72,  48), 3, 3),
-        ( 0.22,  0.36,  5.0,  4.0, (140,  85,  40), 4, 4),
-        (-0.32,  0.28, -6.0,  5.0, (120,  80,  50), 3, 3),
-        ( 0.05,  0.15,  3.0,  2.0, (110,  70,  45), 5, 4),
-        (-0.10, -0.10, -3.0, -2.0, (135,  90,  58), 4, 3),
-        ( 0.42,  0.18,  7.0,  3.0, (100,  68,  44), 3, 3),
-        (-0.38, -0.05, -7.0,  1.0, (125,  85,  55), 4, 3),
+        ( 0.35, -0.28,  6.0, -4.0, 5, 4),
+        (-0.28, -0.32, -5.0, -3.0, 4, 3),
+        ( 0.22,  0.36,  5.0,  4.0, 5, 5),
+        (-0.32,  0.28, -6.0,  5.0, 4, 4),
+        ( 0.05,  0.15,  3.0,  2.0, 6, 5),
+        (-0.10, -0.10, -3.0, -2.0, 5, 4),
+        ( 0.42,  0.18,  7.0,  3.0, 4, 4),
+        (-0.38, -0.05, -7.0,  1.0, 5, 4),
     )
-    for cu, cv, vx, vy, base_col, cw, ch in soil_crumbs:
+    for cu, cv, vx, vy, cw, ch in soil_crumbs:
         crumb_center = _point(x, y, tw, th, skew, 0.5 + cu, 0.5 + cv)
-        px = crumb_center[0] + vx * vt
-        py = crumb_center[1] + vy * vt + 670.0 * vt * vt
-        c_col = (*base_col, alpha) if alpha < 250 else base_col
-        crumb_rect = (int(round(px - cw * 0.5)), int(round(py - ch * 0.5)), cw, ch)
-        pygame.draw.rect(shard_surf, c_col, crumb_rect, border_radius=1)
+        px = int(round(crumb_center[0] + vx * vt))
+        py = int(round(crumb_center[1] + vy * vt + 670.0 * vt * vt))
+        cd = max(2, ch - 1)
+        pygame.draw.rect(shard_surf, soil_f_col, (px, py, cw, cd))
+        pygame.draw.rect(shard_surf, top_col, (px, py - cd // 2, cw, cd // 2 + 1))
 
     if alpha < 250:
         surface.blit(shard_surf, (0, 0))
