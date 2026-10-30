@@ -14,31 +14,31 @@ CLOUDS_DATA = [
     (960,  630, 280, 70, 0.85),
 ]
 
-# Cấu hình chuyển động mây trôi và dập dềnh
+# Cấu hình mây trôi mượt mà (trôi ngang ổn định, không giật dọc)
 CLOUDS_DRIFT_DATA = [
-    # (orig_x, orig_y, width, height, alpha, speed_px_s, bob_amp, phase, is_far)
-    ( 540, 150, 160, 38, 0.55,  8.0, 2.5, 1.2, True),
-    ( 760, 420, 180, 44, 0.50,  6.5, 2.0, 3.4, True),
-    ( 180,  90, 220, 56, 0.86, 12.0, 3.0, 0.5, False),
-    ( 980,  85, 250, 62, 0.82, 15.0, 3.5, 2.1, False),
-    ( 100, 360, 210, 52, 0.78, 10.0, 3.0, 4.3, False),
-    (1160, 350, 230, 56, 0.78, 14.0, 3.2, 5.7, False),
-    ( 260, 640, 260, 65, 0.80, 17.0, 4.0, 1.9, False),
-    ( 960, 630, 280, 70, 0.85, 19.0, 4.5, 3.8, False),
+    # (orig_x, orig_y, width, height, alpha, speed_px_s, is_far)
+    ( 540, 150, 160, 38, 0.50, 12.0, True),
+    ( 760, 420, 180, 44, 0.45, 10.0, True),
+    ( 180,  90, 220, 56, 0.84, 18.0, False),
+    ( 980,  85, 250, 62, 0.80, 22.0, False),
+    ( 100, 360, 210, 52, 0.78, 16.0, False),
+    (1160, 350, 230, 56, 0.78, 20.0, False),
+    ( 260, 640, 260, 65, 0.80, 24.0, False),
+    ( 960, 630, 280, 70, 0.84, 26.0, False),
 ]
 
-# Cấu hình các hòn đảo lơ lửng phía xa (bố trí thoáng, không vướng sàn chơi)
+# Cấu hình các hòn đảo lơ lửng phía xa (vững chãi, hòa cùng nền trời)
 ISLANDS_DATA = [
-    # (rel_x, rel_y, iw, ih, variant, bob_speed, bob_amp, phase)
-    (0.08, 0.52, 105, 68, 0, 1.1, 4.0, 0.0),   # Đảo trái trung tâm
-    (0.91, 0.35,  88, 56, 1, 1.3, 3.5, 2.1),   # Đảo phải trên
-    (0.85, 0.20,  64, 42, 2, 0.9, 2.5, 4.2),   # Đảo nhỏ xa xăm góc trên phải
+    # (rel_x, rel_y, iw, ih, variant)
+    (0.08, 0.50, 105, 68, 0),   # Đảo trái trung tâm (có cây bonsai)
+    (0.91, 0.38,  88, 56, 1),   # Đảo phải (có khóm cây)
+    (0.85, 0.72,  68, 44, 2),   # Đảo nhỏ góc phải dưới
 ]
 
 
 @lru_cache(maxsize=32)
-def _make_cloud_stamp(cw: int, ch: int) -> pygame.Surface:
-    """Tạo texture đám mây dạng vector bo tròn mềm mại."""
+def _make_cloud_stamp(cw: int, ch: int, alpha: int) -> pygame.Surface:
+    """Tạo texture đám mây dạng vector bo tròn mềm mại và nướng sẵn alpha để không bị xung đột."""
     scale = 4
     sw = (cw + 40) * scale
     sh = (ch + 35) * scale
@@ -60,7 +60,9 @@ def _make_cloud_stamp(cw: int, ch: int) -> pygame.Surface:
     pygame.draw.ellipse(c_surf, (248, 252, 255, 255),
                         (scx + int(shw * 0.45), scy - int(shh * 1.05), int(scw * 0.35), int(sch * 0.78)))
 
-    return pygame.transform.smoothscale(c_surf, (sw // scale, sh // scale))
+    scaled = pygame.transform.smoothscale(c_surf, (sw // scale, sh // scale))
+    scaled.set_alpha(max(0, min(255, alpha)))
+    return scaled
 
 
 @lru_cache(maxsize=16)
@@ -78,13 +80,13 @@ def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
     right_edge = (int(cx + sw * 0.42), int(sh * 0.38))
     mid_top = (cx, int(sh * 0.38))
 
-    # Mặt vách đá tối (bên trái)
+    # Mặt vách đá tối (bên trái - chìm trong bóng râm)
     pts_left = [left_edge, (int(cx - sw * 0.22), int(sh * 0.62)), crag_tip, mid_top]
     pygame.draw.polygon(surf, (82, 62, 50), pts_left)
 
-    # Mặt vách đá sáng (bên phải đón nắng)
+    # Mặt vách đá sáng (bên phải - đón ánh mặt trời từ góc trên phải)
     pts_right = [mid_top, crag_tip, (int(cx + sw * 0.22), int(sh * 0.60)), right_edge]
-    pygame.draw.polygon(surf, (115, 88, 70), pts_right)
+    pygame.draw.polygon(surf, (118, 90, 72), pts_right)
 
     # Viên đá nhỏ rời lơ lửng dưới đáy đảo
     pygame.draw.polygon(surf, (95, 75, 60), [
@@ -135,7 +137,7 @@ _cached_sky_bg: Optional[Tuple[int, int, pygame.Surface]] = None
 
 
 def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
-    """Vẽ nền trời gradient, vầng mặt trời ấm áp và các tia nắng xiên."""
+    """Vẽ nền trời gradient, vầng mặt trời ở góc trên-phải, tia nắng xiên và hòn đảo cố định vững chãi."""
     surf = pygame.Surface((win_w, win_h))
     top_color = (68, 138, 212)
     bot_color = (135, 192, 242)
@@ -152,13 +154,25 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
     scale_y = win_h / 720.0
     scale = min(scale_x, scale_y)
 
-    # Đặt mặt trời ở góc cao bên trái (thoáng, không bị khối che lấp)
-    sun_cx = int(210 * scale_x)
-    sun_cy = int(78 * scale_y)
+    # Đặt mặt trời ở góc TRÊN - PHẢI (Top-Right): khớp 100% hướng chiếu sáng vật lý
+    # của khối gỗ (mặt front & right đón nắng, mặt left chìm trong bóng tối)
+    sun_cx = int(980 * scale_x)
+    sun_cy = int(95 * scale_y)
 
+    # 2. Vẽ các hòn đảo mini lơ lửng phía xa cố định trong background
+    # (Đứng vững chãi, không bị rung giật điểm ảnh)
+    for rel_x, rel_y, iw, ih, variant in ISLANDS_DATA:
+        actual_iw = max(20, int(iw * scale))
+        actual_ih = max(15, int(ih * scale))
+        base_x = int(rel_x * win_w)
+        base_y = int(rel_y * win_h)
+        island_stamp = _make_island_stamp(actual_iw, actual_ih, variant)
+        surf.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
+                                 int(base_y - island_stamp.get_height() * 0.5)))
+
+    # 3. Vầng mặt trời tỏa sáng (Warm Sun with Smooth Radial Glow)
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
-    # 2. Vầng hào quang mặt trời tỏa tròn đa lớp mịn màng (Smooth Radial Glow)
     num_steps = 22
     max_radius = int(210 * scale)
     for i in range(num_steps, 0, -1):
@@ -171,15 +185,14 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
     # Lõi mặt trời sáng ấm
     pygame.draw.circle(sun_surf, (255, 255, 245, 255), (sun_cx, sun_cy), max(12, int(18 * scale)))
 
-    # 3. Tia nắng xiên (God rays / Sunbeams)
-    # Kéo dài xuyên suốt màn hình (length = 2200) để không tạo vệt cắt ngang bất thường
-    ray_length = 2200 * scale
+    # 4. Tia nắng xiên (God rays / Sunbeams) chiếu từ góc trên-phải quét xuống dưới-trái
+    ray_length = 2400 * scale
     rays = [
         # (angle_deg, spread_deg, alpha)
-        (25.0, 5.0, 20),
-        (33.0, 6.5, 26),
-        (42.0, 6.0, 22),
-        (51.0, 4.5, 18),
+        (154.0, 5.0, 20),
+        (144.0, 6.5, 26),
+        (134.0, 6.0, 22),
+        (123.0, 4.5, 18),
     ]
 
     for angle, spread, alpha in rays:
@@ -198,12 +211,12 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
 
 
 def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> None:
-    """Vẽ bầu trời, mặt trời, tia nắng xiên, mây trôi động và đảo lơ lửng."""
+    """Vẽ bầu trời, mặt trời, tia nắng xiên, hòn đảo xa và mây trôi ngang mượt mà."""
     global _cached_sky_bg
     if _cached_sky_bg is None or _cached_sky_bg[0] != win_w or _cached_sky_bg[1] != win_h:
         _cached_sky_bg = (win_w, win_h, _render_sky_background(win_w, win_h))
 
-    # 1. Vẽ nền trời tĩnh (đã gồm mặt trời + tia nắng xiên được cache)
+    # 1. Vẽ nền trời tĩnh (gồm nền gradient, hòn đảo xa, mặt trời + tia nắng xiên)
     surface.blit(_cached_sky_bg[2], (0, 0))
 
     scale_x = win_w / 1280.0
@@ -213,43 +226,31 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int) -> Non
     ticks = pygame.time.get_ticks()
     t_sec = ticks / 1000.0
 
-    # 2. Vẽ các đám mây xa (Far whisper clouds)
-    for orig_x, orig_y, cw, ch, alpha_s, speed, bob_amp, phase, is_far in CLOUDS_DRIFT_DATA:
+    # 2. Vẽ các đám mây xa (trôi êm dịu, không giật)
+    for orig_x, orig_y, cw, ch, alpha_s, speed, is_far in CLOUDS_DRIFT_DATA:
         if not is_far:
             continue
         actual_cw = max(20, int(cw * scale))
         actual_ch = max(10, int(ch * scale))
         wrap_w = win_w + actual_cw * 2
-        drift_x = (int(orig_x * scale_x) + speed * scale_x * t_sec) % wrap_w - actual_cw
-        bob_y = int(orig_y * scale_y) + math.sin(t_sec * 0.9 + phase) * (bob_amp * scale_y)
+        # Mây trôi êm theo chiều gió từ phải qua trái (hướng ánh sáng mặt trời)
+        drift_x = (int(orig_x * scale_x) - speed * scale_x * t_sec) % wrap_w - actual_cw
+        actual_y = int(orig_y * scale_y)
 
-        stamp = _make_cloud_stamp(actual_cw, actual_ch)
-        stamp.set_alpha(int(230 * alpha_s))
-        surface.blit(stamp, (int(drift_x - stamp.get_width() // 2),
-                             int(bob_y - stamp.get_height() * 0.62)))
+        stamp = _make_cloud_stamp(actual_cw, actual_ch, int(230 * alpha_s))
+        surface.blit(stamp, (int(round(drift_x - stamp.get_width() // 2)),
+                             int(round(actual_y - stamp.get_height() * 0.62))))
 
-    # 3. Vẽ các hòn đảo mini lơ lửng phía xa (với chuyển động dập dềnh nhẹ nhàng)
-    for rel_x, rel_y, iw, ih, variant, bob_speed, bob_amp, phase in ISLANDS_DATA:
-        actual_iw = max(20, int(iw * scale))
-        actual_ih = max(15, int(ih * scale))
-        base_x = int(rel_x * win_w)
-        base_y = int(rel_y * win_h) + math.sin(t_sec * bob_speed + phase) * (bob_amp * scale_y)
-
-        island_stamp = _make_island_stamp(actual_iw, actual_ih, variant)
-        surface.blit(island_stamp, (base_x - island_stamp.get_width() // 2,
-                                    int(base_y - island_stamp.get_height() * 0.5)))
-
-    # 4. Vẽ các đám mây chính bồng bềnh trôi ngang màn hình (Main puffy clouds)
-    for orig_x, orig_y, cw, ch, alpha_s, speed, bob_amp, phase, is_far in CLOUDS_DRIFT_DATA:
+    # 3. Vẽ các đám mây chính bồng bềnh trôi ngang màn hình (Main puffy clouds)
+    for orig_x, orig_y, cw, ch, alpha_s, speed, is_far in CLOUDS_DRIFT_DATA:
         if is_far:
             continue
         actual_cw = max(20, int(cw * scale))
         actual_ch = max(10, int(ch * scale))
         wrap_w = win_w + actual_cw * 2
-        drift_x = (int(orig_x * scale_x) + speed * scale_x * t_sec) % wrap_w - actual_cw
-        bob_y = int(orig_y * scale_y) + math.sin(t_sec * 1.1 + phase) * (bob_amp * scale_y)
+        drift_x = (int(orig_x * scale_x) - speed * scale_x * t_sec) % wrap_w - actual_cw
+        actual_y = int(orig_y * scale_y)
 
-        stamp = _make_cloud_stamp(actual_cw, actual_ch)
-        stamp.set_alpha(int(230 * alpha_s))
-        surface.blit(stamp, (int(drift_x - stamp.get_width() // 2),
-                             int(bob_y - stamp.get_height() * 0.62)))
+        stamp = _make_cloud_stamp(actual_cw, actual_ch, int(230 * alpha_s))
+        surface.blit(stamp, (int(round(drift_x - stamp.get_width() // 2)),
+                             int(round(actual_y - stamp.get_height() * 0.62))))
