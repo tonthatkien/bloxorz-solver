@@ -494,12 +494,12 @@ def run(level_path: str) -> None:
                     else:
                         _start_replay()
                 elif btn_speed.is_clicked(event):
-                    if replay_speed == 1.0:
-                        replay_speed = 0.5
-                    elif replay_speed == 0.5:
+                    if replay_speed == 0.5:
+                        replay_speed = 1.0
+                    elif replay_speed == 1.0:
                         replay_speed = 2.0
                     else:
-                        replay_speed = 1.0
+                        replay_speed = 0.5
                     btn_speed.text = f"{replay_speed}x"
                 elif won:
                     if btn_win_restart.is_clicked(event):
