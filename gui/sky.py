@@ -219,7 +219,7 @@ def _render_sky_background(win_w: int, win_h: int) -> pygame.Surface:
     sun_surf = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
 
     r_disc = int(35 * scale)        # Bán kính 35px -> Đường kính 70px
-    r_max_halo = int(52 * scale)
+    r_max_halo = int(75 * scale)
 
     # Quầng sáng mờ dần ra bầu trời - tông vàng ấm nhẹ nhàng
     for rad in range(r_max_halo, r_disc, -1):
