@@ -10,7 +10,7 @@ Cách đếm (thống nhất để so sánh công bằng):
 import time
 import tracemalloc
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 
 @dataclass
@@ -29,6 +29,8 @@ class SearchResult:
     length: int = 0
     cost: float = 0.0
     note: str = ""        # "timeout" / "node_limit" nếu bị cắt
+    # Thứ tự các State được lấy khỏi frontier. Chỉ có giá trị khi record_trace=True.
+    expanded_order: List[Any] = field(default_factory=list)
 
 
 class LimitReached(Exception):
@@ -59,11 +61,14 @@ def reconstruct_path(parent: dict, state) -> List[str]:
 
 
 def run_measured(solve_fn: Callable, game, limits: Optional[Limits] = None,
-                 repeats: int = 3) -> SearchResult:
-    """Chạy solver, đo time (trung bình `repeats` lần) và peak memory (1 lần riêng)."""
-    def _run():
+                 repeats: int = 3, record_trace: bool = False) -> SearchResult:
+    """Chạy solver, đo time (trung bình `repeats` lần) và peak memory (1 lần riêng).
+    
+    record_trace=True: chạy thêm một lần có trace để điền `expanded_order`;
+    """
+    def _run(**kwargs):
         try:
-            return solve_fn(game, limits)
+            return solve_fn(game, limits, **kwargs)
         except LimitReached as e:
             return SearchResult(solved=False, note=str(e))
 
@@ -81,4 +86,8 @@ def run_measured(solve_fn: Callable, game, limits: Optional[Limits] = None,
     res.peak_memory_kb = tracemalloc.get_traced_memory()[1] / 1024
     tracemalloc.stop()
     res.length = len(res.path)
+
+    if record_trace and not res.note:
+        res.expanded_order = _run(record_trace=True).expanded_order
+
     return res

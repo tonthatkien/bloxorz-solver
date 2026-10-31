@@ -23,7 +23,8 @@ from typing import Optional
 from .base import LimitChecker, Limits, SearchResult, reconstruct_path
 
 
-def solve(game, limits: Optional[Limits] = None) -> SearchResult:
+def solve(game, limits: Optional[Limits] = None,
+          record_trace: bool = False) -> SearchResult:
     """Tìm lời giải bằng DFS; trả SearchResult(solved=False) nếu hết không gian tìm kiếm."""
     checker = LimitChecker(limits)
     start = game.initial_state()
@@ -31,17 +32,21 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
     g_values = {start: 0.0}
     stack = [start]
     expanded = 0
+    order = []
     while stack:
         state = stack.pop()
         expanded += 1
         checker.tick(expanded)
+        if record_trace:
+            order.append(state)
         if game.is_goal(state):
             path = reconstruct_path(parent, state)
             return SearchResult(solved=True, path=path, expanded_nodes=expanded,
-                                length=len(path), cost=g_values[state])
+                                length=len(path), cost=g_values[state],
+                                expanded_order=order)
         for action, nxt, step in reversed(game.get_successors(state)):
             if nxt not in parent:
                 parent[nxt] = (state, action)
                 g_values[nxt] = g_values[state] + step
                 stack.append(nxt)
-    return SearchResult(solved=False, expanded_nodes=expanded)
+    return SearchResult(solved=False, expanded_nodes=expanded, expanded_order=order)
