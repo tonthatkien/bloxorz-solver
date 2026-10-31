@@ -26,7 +26,8 @@ def _finite_cost(step_cost: float) -> float:
     return cost
 
 
-def solve(game, limits: Optional[Limits] = None) -> SearchResult:
+def solve(game, limits: Optional[Limits] = None,
+          record_trace: bool = False) -> SearchResult:  # MỚI: tham số record_trace
     """Tìm đường đi có tổng chi phí nhỏ nhất bằng hàng đợi ưu tiên UCS."""
     checker = LimitChecker(limits)
     start = game.initial_state()
@@ -36,6 +37,7 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
     cost_so_far = {start: 0.0}
     parent: dict[State, Optional[tuple[State, str]]] = {start: None}
     expanded = 0
+    expanded_order: list[State] = []  # MỚI: đặt tên khác `order` để không đè bộ đếm tie-break
 
     while frontier:
         current_cost, _, current = heapq.heappop(frontier)
@@ -43,6 +45,8 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
             continue
         expanded += 1
         checker.tick(expanded)
+        if record_trace: 
+            expanded_order.append(current)
         if game.is_goal(current):
             path = reconstruct_path(parent, current)
             return SearchResult(
@@ -51,6 +55,7 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
                 expanded_nodes=expanded,
                 length=len(path),
                 cost=current_cost,
+                expanded_order=expanded_order,  
             )
 
         for action, next_state, raw_step_cost in game.get_successors(current):
@@ -64,4 +69,4 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
             parent[next_state] = (current, action)
             heapq.heappush(frontier, (next_cost, next(order), next_state))
 
-    return SearchResult(expanded_nodes=expanded)
+    return SearchResult(expanded_nodes=expanded, expanded_order=expanded_order)  
