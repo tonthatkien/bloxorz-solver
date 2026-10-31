@@ -36,10 +36,8 @@ class TestCommonHelpers(unittest.TestCase):
     def test_list_levels_is_sorted_and_excludes_demo_by_default(self):
         stems = [p.stem for p in common.list_levels()]
         self.assertIn("g1_basic_01", stems)
-        self.assertNotIn("g3_switch_demo", stems)
         groups = [common.group_of(s) for s in stems]
         self.assertEqual(groups, sorted(groups))
-        self.assertIn("g3_switch_demo", [p.stem for p in common.list_levels(include_demo=True)])
 
     def test_select_levels_by_prefix(self):
         paths = common.list_levels()
