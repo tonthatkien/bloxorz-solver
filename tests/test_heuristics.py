@@ -37,7 +37,7 @@ def _make_game(level_path: str):
 class TestStepCost(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.game = _make_game("levels/g3_switch_demo.json")
+        self.game = _make_game("levels/g3_switch_01.json")
 
     def test_swap_action_returns_cost_swap(self) -> None:
         """Hành động 'S' phải trả về COST_SWAP bất kể trạng thái."""
@@ -64,7 +64,7 @@ class TestStepCost(unittest.TestCase):
 
     def test_switch_activation_returns_cost_switch(self) -> None:
         """Bước kích hoạt công tắc (bridges thay đổi) phải trả COST_SWITCH."""
-        game = _make_game("levels/g3_switch_demo.json")
+        game = _make_game("levels/g3_switch_01.json")
         old = State(1, 1, STAND, bridges=0)
         # Sau khi kích hoạt công tắc soft tại (1,1): bridge 0 mở → bridges=1
         new = State(1, 1, STAND, bridges=1)
@@ -181,7 +181,7 @@ class TestHManhattanOrient(unittest.TestCase):
 
     def test_split_switch_level_uses_zero_heuristic(self) -> None:
         """Teleport do split switch làm mất hiệu lực của cận hình học."""
-        split_game = _make_game("levels/g3_switch_demo.json")
+        split_game = _make_game("levels/g4_mixed_01.json")
         state = State(0, 0, STAND)
         self.assertEqual(h_manhattan(split_game, state), 0.0)
         self.assertEqual(h_manhattan_orient(split_game, state), 0.0)
@@ -241,7 +241,7 @@ class TestHRelaxedMaze(unittest.TestCase):
 
     def test_split_switch_level_uses_zero_heuristic(self) -> None:
         """Heuristic BFS trả 0 cả trước khi split switch dịch chuyển cube."""
-        split_game = _make_game("levels/g3_switch_demo.json")
+        split_game = _make_game("levels/g4_mixed_01.json")
         state = State(0, 0, STAND)
         self.assertEqual(h_relaxed_maze(split_game, state), 0.0)
 

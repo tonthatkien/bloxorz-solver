@@ -61,11 +61,6 @@ class TestT2Catalog(unittest.TestCase):
                 values = [r[metric] for r in records]
                 self.assertTrue(all(a < b for a, b in zip(values, values[1:])))
 
-    def test_existing_switch_demo_remains_separate_from_t2_benchmarks(self) -> None:
-        demo = load_level("levels/g3_switch_demo.json")
-        self.assertTrue(any(s.type == "split" for s in demo.switches.values()))
-        self.assertNotIn(demo.name, CATALOG)
-
 
 class _SolutionChecks:
     def check_solution(self, name: str) -> list[State]:

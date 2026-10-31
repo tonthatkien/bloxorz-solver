@@ -121,7 +121,7 @@ class TestBoard(unittest.TestCase):
 
 
 LEVEL_DIR = os.path.join(os.path.dirname(__file__), "..", "levels")  # chỉnh theo repo
-LEVEL_FILES = ["g1_basic_01.json", "g2_fragile_01.json", "g3_switch_demo.json"]
+LEVEL_FILES = ["g1_basic_01.json", "g2_fragile_01.json"]
 
 
 def read_json(name):
