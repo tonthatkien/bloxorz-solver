@@ -70,7 +70,7 @@ class SolverManager:
             try:
                 solver_game = Game(game_level)
                 limits = Limits(max_nodes=2_000_000, timeout_sec=60.0)
-                res = run_measured(solver_fn, solver_game, limits=limits, repeats=1)
+                res = run_measured(solver_fn, solver_game, limits=limits, repeats=1, record_trace=True)
             except Exception as exc:
                 res = SearchResult(solved=False, note=str(exc))
             self.solve_queue.put((req_id, s_name, res))

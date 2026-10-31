@@ -114,7 +114,8 @@ def draw_dock_bar(screen: pygame.Surface, mouse_pos: Tuple[int, int],
                   btn_bfs: Button, btn_dfs: Button, btn_ucs: Button, btn_astar: Button,
                   btn_action: Button, btn_speed: Button,
                   stats_box_x: int, stats_box_w: int,
-                  font_dock_b: pygame.font.Font, font_dock_sm: pygame.font.Font) -> None:
+                  font_dock_b: pygame.font.Font, font_dock_sm: pygame.font.Font,
+                  btn_path: Optional[Button] = None, is_path_visible: bool = False) -> None:
     """Vẽ thanh dock điều khiển giải thuật toán và replay ở cạnh dưới màn hình."""
     # Nền Dock
     draw_aa_round_rect(screen, (DOCK_X, DOCK_Y, DOCK_W, DOCK_H),
@@ -174,6 +175,24 @@ def draw_dock_bar(screen: pygame.Surface, mouse_pos: Tuple[int, int],
         btn_speed.text_color = (30, 41, 59)
     btn_speed.text = f"{replay_speed}x"
     btn_speed.draw(screen, mouse_pos)
+
+    # Nút Path / Hide Path
+    if btn_path is not None:
+        can_path = bool(last_result and last_result.solved and last_result.path and not is_solving)
+        btn_path.enabled = can_path
+        if is_path_visible:
+            btn_path.text = 'Hide Path'
+            btn_path.bg_color = (254, 240, 138)
+            btn_path.hover_color = (253, 224, 71)
+            btn_path.border_color = (180, 83, 9)
+            btn_path.text_color = (133, 77, 14)
+        else:
+            btn_path.text = 'Path'
+            btn_path.bg_color = (248, 250, 252)
+            btn_path.hover_color = (226, 232, 240)
+            btn_path.border_color = (30, 41, 59)
+            btn_path.text_color = (30, 41, 59)
+        btn_path.draw(screen, mouse_pos)
 
     # Hộp hiển thị thống kê
     draw_dock_stats(screen, stats_box_x, DOCK_Y + 6, stats_box_w, 32,

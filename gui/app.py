@@ -17,6 +17,7 @@ from gui.hud import (
 )
 from gui.intro import IntroScreen
 from gui.level_modal import LevelSelectorModal, get_next_level_path
+from gui.route_tracer import RouteTracer
 from gui.solver_runner import SolverManager
 from gui.theme import get_theme
 from gui.transition import SPAWN_DELAY_MS, ScreenFader
@@ -75,12 +76,14 @@ def run(level_path: str) -> None:
     solver_mgr = SolverManager()
     intro = IntroScreen(WINDOW_SIZE, current_level_path)
     fader = ScreenFader(WINDOW_SIZE)
+    tracer = RouteTracer()
     showing_intro = True
 
-    def load_level_and_reset(path: str, delay_ms: int = 0) -> None:
+    def load_level_and_reset(path: str, delay_ms: int = 0, reset_solver: bool = True) -> None:
         """Tải màn chơi và thiết lập lại trạng thái."""
         nonlocal level, game, current_level_path, tw, th, offset, skew, state, won, lost, move_count
-        solver_mgr.reset(reset_result=(path != current_level_path))
+        tracer.hide()
+        solver_mgr.reset(reset_result=reset_solver)
         current_level_path = path
         level = load_level(current_level_path)
         game = Game(level)
@@ -91,12 +94,12 @@ def run(level_path: str) -> None:
     def _enter_game() -> None:
         nonlocal showing_intro
         showing_intro = False
-        (load_level_and_reset(intro.selected_level_path, delay_ms=SPAWN_DELAY_MS)
-         if intro.selected_level_path != current_level_path
-         else anim.reset_for_level(pygame.time.get_ticks(), delay_ms=SPAWN_DELAY_MS))
+        load_level_and_reset(intro.selected_level_path, delay_ms=SPAWN_DELAY_MS, reset_solver=True)
 
     def _return_to_intro() -> None:
         nonlocal showing_intro
+        tracer.hide()
+        solver_mgr.reset(reset_result=True)
         intro.open(current_level_path)
         showing_intro = True
 
@@ -109,12 +112,14 @@ def run(level_path: str) -> None:
     def _start_solve(name: str) -> None:
         """Chạy thuật toán tìm kiếm trên luồng nền."""
         if not solver_mgr.is_solving:
+            tracer.hide()
             _reset_play_state()
             solver_mgr.start_solve(name, level)
 
     def _start_replay() -> None:
         """Phát lại lời giải tìm được."""
         if solver_mgr.start_replay():
+            tracer.hide()
             _reset_play_state()
 
     # Nút thanh tiêu đề
@@ -131,8 +136,9 @@ def run(level_path: str) -> None:
     btn_astar = Button((DOCK_X + 188, DOCK_Y + 6, 52, 32), 'A*', font_dock_b, border_radius=8)
     btn_action = Button((DOCK_X + 250, DOCK_Y + 6, 126, 32), 'Replay Solution', font_dock_b, border_radius=8, enabled=False)
     btn_speed = Button((DOCK_X + 382, DOCK_Y + 6, 52, 32), '1.0x', font_dock_b, border_radius=8, enabled=True)
+    btn_path = Button((DOCK_X + 440, DOCK_Y + 6, 76, 32), 'Path', font_dock_b, border_radius=8, enabled=False)
     dock_algo_btns = [(btn_bfs, 'BFS'), (btn_dfs, 'DFS'), (btn_ucs, 'UCS'), (btn_astar, 'A*')]
-    stats_box_x = DOCK_X + 440
+    stats_box_x = DOCK_X + 524
     stats_box_w = DOCK_W - (stats_box_x - DOCK_X) - 14
 
     # Nút banner thắng/thua
@@ -170,9 +176,9 @@ def run(level_path: str) -> None:
             level_modal.is_any_hovered(mouse_pos) if level_modal.is_open else
             help_modal.is_any_hovered(mouse_pos) if help_modal.is_open else
             (level_pill_rect.collidepoint(mouse_pos) or
-             any(b.is_hovered(mouse_pos) for b in (btn_home, btn_help, btn_restart, btn_new_game, btn_action, btn_speed)) or
+             any(b.is_hovered(mouse_pos) for b in (btn_home, btn_help, btn_restart, btn_new_game, btn_action, btn_speed, btn_path)) or
              any(b.is_hovered(mouse_pos) for b, _ in dock_algo_btns) or
-             (won and (btn_win_restart.is_hovered(mouse_pos) or btn_win_new_game.is_hovered(mouse_pos) or btn_win_next.is_hovered(mouse_pos))) or
+             (won and not tracer.is_visible and (btn_win_restart.is_hovered(mouse_pos) or btn_win_new_game.is_hovered(mouse_pos) or btn_win_next.is_hovered(mouse_pos))) or
              (lost and (btn_loss_restart.is_hovered(mouse_pos) or btn_loss_new_game.is_hovered(mouse_pos))))
         )
         try:
@@ -217,7 +223,7 @@ def run(level_path: str) -> None:
                 elif event.key == pygame.K_h:
                     help_modal.open()
                 elif event.key == pygame.K_r:
-                    load_level_and_reset(current_level_path)
+                    load_level_and_reset(current_level_path, reset_solver=False)
                 elif can_control and event.key == pygame.K_SPACE and not anim.animating:
                     ns, _ = _step(game, state, 'S')
                     if ns is not None:
@@ -243,7 +249,7 @@ def run(level_path: str) -> None:
                 elif btn_help.is_clicked(event):
                     help_modal.open()
                 elif btn_restart.is_clicked(event):
-                    load_level_and_reset(current_level_path)
+                    load_level_and_reset(current_level_path, reset_solver=False)
                 elif btn_action.is_clicked(event):
                     if solver_mgr.is_replaying:
                         solver_mgr.stop_replay()
@@ -252,13 +258,15 @@ def run(level_path: str) -> None:
                 elif btn_speed.is_clicked(event):
                     new_sp = solver_mgr.cycle_speed()
                     btn_speed.text = f"{new_sp}x"
-                elif won and btn_win_next.is_clicked(event):
+                elif btn_path.is_clicked(event):
+                    tracer.toggle(game, solver_mgr.last_result, now, current_state=state)
+                elif won and not tracer.is_visible and btn_win_next.is_clicked(event):
                     nxt = get_next_level_path(current_level_path)
                     (fader.start(now, lambda p=nxt: load_level_and_reset(p, delay_ms=SPAWN_DELAY_MS))
                      if nxt else level_modal.open(current_level_path))
-                elif (won and btn_win_restart.is_clicked(event)) or (lost and btn_loss_restart.is_clicked(event)):
-                    load_level_and_reset(current_level_path)
-                elif (won and btn_win_new_game.is_clicked(event)) or (lost and btn_loss_new_game.is_clicked(event)):
+                elif (won and not tracer.is_visible and btn_win_restart.is_clicked(event)) or (lost and btn_loss_restart.is_clicked(event)):
+                    load_level_and_reset(current_level_path, reset_solver=False)
+                elif (won and not tracer.is_visible and btn_win_new_game.is_clicked(event)) or (lost and btn_loss_new_game.is_clicked(event)):
                     level_modal.open(current_level_path)
                 else:
                     for b, algo in dock_algo_btns:
@@ -316,15 +324,9 @@ def run(level_path: str) -> None:
                     is_split = (state.split is not None)
                     if solver_mgr.is_replaying:
                         if not was_split and is_split:
-                            solver_mgr.replay_last_time = max(
-                                solver_mgr.replay_last_time,
-                                now + int(REPLAY_SPLIT_PAUSE_MS / solver_mgr.replay_speed)
-                            )
+                            solver_mgr.replay_last_time = max(solver_mgr.replay_last_time, now + int(REPLAY_SPLIT_PAUSE_MS / solver_mgr.replay_speed))
                         elif was_split and not is_split:
-                            solver_mgr.replay_last_time = max(
-                                solver_mgr.replay_last_time,
-                                now + int(REPLAY_MERGE_PAUSE_MS / solver_mgr.replay_speed)
-                            )
+                            solver_mgr.replay_last_time = max(solver_mgr.replay_last_time, now + int(REPLAY_MERGE_PAUSE_MS / solver_mgr.replay_speed))
 
                     if game.is_goal(state):
                         anim.start_fall_goal(state, now)
@@ -349,10 +351,12 @@ def run(level_path: str) -> None:
         current_theme = get_theme(level.name)
         draw_sky_with_clouds(screen, *WINDOW_SIZE, theme=current_theme)
 
-        sc_kw = dict(bridge_mask=state.bridges, theme=current_theme)
+        sc_kw = dict(bridge_mask=state.bridges, theme=current_theme,
+                     floor_overlay_fn=lambda: tracer.draw(
+                         screen, tw, th, offset, skew, current_theme, now,
+                         speed=solver_mgr.replay_speed, active_state=state))
         if anim.spawning:
-            draw_scene(screen, level, None, tw, th, offset, skew,
-                       spawn_state=(state.r, state.c, state.orient, anim.z_spawn), **sc_kw)
+            draw_scene(screen, level, None, tw, th, offset, skew, spawn_state=(state.r, state.c, state.orient, anim.z_spawn), **sc_kw)
         elif anim.animating:
             draw_scene(screen, level, None, tw, th, offset, skew, anim_state=anim.get_anim_tuple(), **sc_kw)
         elif anim.falling_goal or anim.falling_void:
@@ -369,16 +373,13 @@ def run(level_path: str) -> None:
         for b in (btn_home, btn_help, btn_restart, btn_new_game):
             b.draw(screen, mouse_pos)
 
-        draw_dock_bar(screen, mouse_pos,
-                      solver_mgr.is_solving, solver_mgr.solving_name,
-                      solver_mgr.last_solver_name, solver_mgr.last_result,
-                      solver_mgr.is_replaying, solver_mgr.replay_speed,
-                      btn_bfs, btn_dfs, btn_ucs, btn_astar,
-                      btn_action, btn_speed,
-                      stats_box_x, stats_box_w,
-                      font_dock_b, font_dock_sm)
+        draw_dock_bar(screen, mouse_pos, solver_mgr.is_solving, solver_mgr.solving_name,
+                      solver_mgr.last_solver_name, solver_mgr.last_result, solver_mgr.is_replaying, solver_mgr.replay_speed,
+                      btn_bfs, btn_dfs, btn_ucs, btn_astar, btn_action, btn_speed,
+                      stats_box_x, stats_box_w, font_dock_b, font_dock_sm,
+                      btn_path=btn_path, is_path_visible=tracer.is_visible)
 
-        if won:
+        if won and not tracer.is_visible:
             draw_win_banner(screen, mouse_pos, b_px, b_py, banner_w, banner_h,
                             move_count, font_title, font_sub,
                             btn_win_restart, btn_win_new_game, btn_win_next)
@@ -387,10 +388,8 @@ def run(level_path: str) -> None:
                              move_count, font_title, font_sub,
                              btn_loss_restart, btn_loss_new_game)
 
-        if level_modal.is_open:
-            level_modal.draw(screen, mouse_pos)
-        if help_modal.is_open:
-            help_modal.draw(screen, mouse_pos)
+        if level_modal.is_open: level_modal.draw(screen, mouse_pos)
+        if help_modal.is_open: help_modal.draw(screen, mouse_pos)
 
         fader.update(now)
         fader.draw(screen, now)

@@ -50,7 +50,7 @@ def draw_scene(surface: pygame.Surface,
                fall_state: Optional[tuple] = None,
                spawn_state: Optional[Tuple[int, int, int, float]] = None,
                *, bridge_mask: Optional[int] = None,
-               theme=None) -> None:
+               theme=None, floor_overlay_fn=None) -> None:
     """Vẽ địa hình trước khối và các hiệu ứng.
 
     Truyền bridge_mask runtime khi state=None trong animation hoặc khi ẩn khối.
@@ -219,6 +219,9 @@ def draw_scene(surface: pygame.Surface,
     # Vẽ vòng hoa quanh miệng hố đích
     for gx, gy in goal_garlands:
         _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th, theme=theme)
+
+    if floor_overlay_fn is not None:
+        floor_overlay_fn()
 
     # 3. Rơi vào hố Goal: Khối chìm dần xuống hố và tan biến
     if is_goal:
