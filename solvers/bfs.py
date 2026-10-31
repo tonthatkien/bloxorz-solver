@@ -20,7 +20,8 @@ def _finite_cost(step_cost: float) -> float:
     return cost
 
 
-def solve(game, limits: Optional[Limits] = None) -> SearchResult:
+def solve(game, limits: Optional[Limits] = None,
+          record_trace: bool = False) -> SearchResult:
     """Tìm đường đi có ít hành động nhất, dùng FIFO và đánh dấu visited khi đưa vào hàng đợi."""
     checker = LimitChecker(limits)
     start = game.initial_state()
@@ -29,11 +30,14 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
     parent: dict[State, Optional[tuple[State, str]]] = {start: None}
     path_cost = {start: 0.0}
     expanded = 0
+    order: list[State] = []
 
     while frontier:
         current = frontier.popleft()
         expanded += 1
         checker.tick(expanded)
+        if record_trace:
+            order.append(current)
         if game.is_goal(current):
             path = reconstruct_path(parent, current)
             return SearchResult(
@@ -42,6 +46,7 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
                 expanded_nodes=expanded,
                 length=len(path),
                 cost=path_cost[current],
+                expanded_order=list(order)
             )
 
         for action, next_state, step_cost in game.get_successors(current):
@@ -52,4 +57,4 @@ def solve(game, limits: Optional[Limits] = None) -> SearchResult:
             path_cost[next_state] = path_cost[current] + _finite_cost(step_cost)
             frontier.append(next_state)
 
-    return SearchResult(expanded_nodes=expanded)
+    return SearchResult(expanded_nodes=expanded, expanded_order=order)
