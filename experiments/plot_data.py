@@ -216,3 +216,43 @@ def paired_values(runs: list[Run], mode: str, metric: str,
                      run.values[field] if field else run.values[metric] / ref.values[metric])
             result[run.series].append(value)
     return result, len(levels)
+
+
+def solver_ratios(runs: list[Run], mode: str, metric: str,
+                  group: str = "all") -> tuple[dict[str, list[float]], int]:
+    """Pair positive solver measurements with UCS on a shared level/mode cohort.
+
+    Keep non-optimal solutions (especially DFS) so cost inflation stays visible.
+    Missing/failed/zero metrics exclude the level for every solver in that panel.
+    """
+    names = ordered((r.series for r in runs if r.mode == mode), SOLVERS)
+    if names and "ucs" not in names:
+        raise ValueError(f"Missing UCS baseline for {mode}")
+    items = [r for r in runs if r.mode == mode and (group == "all" or r.group == group)]
+    table = {(r.level, r.series): r for r in items}
+    levels = sorted({r.level for r in items})
+    result = {name: [] for name in names}
+    for level in levels:
+        batch = [table.get((level, name)) for name in names]
+        if not all(r and r.solved and r.values[metric] is not None and r.values[metric] > 0
+                   for r in batch):
+            continue
+        denominator = table[level, "ucs"].values[metric]
+        for run in batch:
+            result[run.series].append(run.values[metric] / denominator)
+    return result, len(levels)
+
+
+def optimality_counts(runs: list[Run]) -> list[dict[str, str | int]]:
+    """Record observed cost agreement with h=0; this does not prove admissibility."""
+    result = []
+    for mode in MODES:
+        items = [r for r in runs if r.mode == mode]
+        total = len({r.level for r in items})
+        for name in ordered((r.series for r in items), HEURISTICS):
+            batch = [r for r in items if r.series == name]
+            good = sum(r.solved and r.optimal is True for r in batch)
+            bad = sum(r.solved and r.optimal is False for r in batch)
+            result.append({"cost_mode": mode, "heuristic": name, "optimal": good,
+                           "non_optimal": bad, "unconfirmed": total-good-bad, "total": total})
+    return result

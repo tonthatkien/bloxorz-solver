@@ -5,8 +5,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from experiments.plot_data import (Run, check_heuristics, geometric_mean, paired_values,
-                                   read_runs, summarize, validate_summary)
+from experiments.plot_data import (Run, check_heuristics, geometric_mean, optimality_counts,
+                                   paired_values, read_runs, solver_ratios, summarize,
+                                   validate_summary)
 
 
 def measured(level: str, series: str, nodes: int = 4, seconds: float = 1,
@@ -134,6 +135,71 @@ class TestPlotData(unittest.TestCase):
         self.write(rows[1:])
         with self.assertRaisesRegex(ValueError, "conditions"):
             validate_summary(self.path, runs)
+
+
+class TestSolverComparison(unittest.TestCase):
+    """Verify within-level UCS normalization and honest handling of quality/failures."""
+
+    def test_ratios_use_the_same_level_before_geometric_aggregation(self) -> None:
+        rows = [measured("g1_basic_01", "ucs", 4), measured("g1_basic_01", "bfs", 1),
+                measured("g1_basic_02", "ucs", 8), measured("g1_basic_02", "bfs", 32)]
+        ratios, total = solver_ratios(rows, "unit", "expanded_nodes", "g1")
+        self.assertEqual(total, 2)
+        self.assertEqual(ratios, {"bfs": [.25, 4], "ucs": [1, 1]})
+        self.assertAlmostEqual(geometric_mean(ratios["bfs"]), 1)
+
+    def test_groups_and_cost_modes_are_not_mixed(self) -> None:
+        rows = [measured("g1_basic_01", "ucs"), measured("g1_basic_01", "bfs", 1),
+                replace(measured("g2_fragile_01", "ucs"), group="g2"),
+                replace(measured("g2_fragile_01", "bfs", 8), group="g2"),
+                measured("g1_basic_01", "ucs", mode="weighted"),
+                measured("g1_basic_01", "bfs", 12, mode="weighted")]
+        self.assertEqual(solver_ratios(rows, "unit", "expanded_nodes", "g1")[0]["bfs"], [.25])
+        self.assertEqual(solver_ratios(rows, "unit", "expanded_nodes", "g2")[0]["bfs"], [2])
+        self.assertEqual(solver_ratios(rows, "weighted", "expanded_nodes")[0]["bfs"], [3])
+
+    def test_failed_missing_zero_or_absent_metric_excludes_every_solver(self) -> None:
+        good = [measured("g1_basic_01", "ucs"), measured("g1_basic_01", "bfs", 1)]
+        ucs, bfs = measured("g1_basic_02", "ucs"), measured("g1_basic_02", "bfs")
+        for extra in ([ucs], [bfs], [ucs, replace(bfs, solved=False)],
+                      [ucs, replace(bfs, values={**bfs.values, "time_sec": 0})],
+                      [replace(ucs, values={**ucs.values, "time_sec": None}), bfs]):
+            with self.subTest(extra=extra):
+                ratios, total = solver_ratios(good+extra, "unit", "time_sec")
+                self.assertEqual(total, 2)
+                self.assertEqual(ratios, {"bfs": [1], "ucs": [1]})
+
+    def test_nonoptimal_dfs_remains_visible_in_cost_comparison(self) -> None:
+        ucs = measured("g1_basic_01", "ucs")
+        dfs = measured("g1_basic_01", "dfs")
+        dfs = replace(dfs, optimal=False, values={**dfs.values, "cost": 10})
+        self.assertEqual(solver_ratios([ucs, dfs], "unit", "cost")[0],
+                         {"dfs": [5], "ucs": [1]})
+
+    def test_weighted_cost_uses_ucs_cost_and_not_shortest_length(self) -> None:
+        ucs = measured("g1_basic_01", "ucs", mode="weighted")
+        bfs = measured("g1_basic_01", "bfs", mode="weighted")
+        ucs = replace(ucs, values={**ucs.values, "length": 4, "cost": 6})
+        bfs = replace(bfs, values={**bfs.values, "length": 2, "cost": 9})
+        self.assertEqual(solver_ratios([ucs, bfs], "weighted", "cost")[0]["bfs"], [1.5])
+
+    def test_missing_ucs_baseline_is_explicit(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Missing UCS"):
+            solver_ratios([measured("g1_basic_01", "bfs")], "unit", "cost")
+
+    def test_quality_counts_distinguish_nonoptimal_and_unconfirmed(self) -> None:
+        rows = [measured("g1_basic_01", "zero"), measured("g1_basic_01", "advanced"),
+                measured("g1_basic_02", "zero"),
+                replace(measured("g1_basic_02", "advanced"), optimal=False),
+                measured("g1_basic_03", "zero"),
+                replace(measured("g1_basic_03", "advanced"), solved=False),
+                measured("g1_basic_04", "zero")]
+        counts = {r["heuristic"]: r for r in optimality_counts(rows)}
+        self.assertEqual(counts["advanced"], {"cost_mode": "unit", "heuristic": "advanced",
+                                            "optimal": 1, "non_optimal": 1,
+                                            "unconfirmed": 2, "total": 4})
+        self.assertEqual(counts["zero"]["optimal"], 4)
+        self.assertEqual(optimality_counts([]), [])
 
 
 if __name__ == "__main__":
