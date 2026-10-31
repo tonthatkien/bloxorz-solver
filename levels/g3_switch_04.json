@@ -1,0 +1,31 @@
+{
+  "name": "g3_switch_04",
+  "grid": [
+    "#..########",
+    "#.#####.###",
+    "#####.....G",
+    "###..######",
+    "###...#####",
+    ".####.####.",
+    ".###..####.",
+    ".##....##.."
+  ],
+  "start": [0, 9],
+  "goal": [2, 10],
+  "bridges": [
+    {"id": 20, "pos": [4, 1], "open": false},
+    {"id": 23, "pos": [3, 8], "open": false},
+    {"id": 27, "pos": [3, 1], "open": false},
+    {"id": 29, "pos": [2, 1], "open": true},
+    {"id": 36, "pos": [4, 10], "open": true},
+    {"id": 43, "pos": [5, 8], "open": false},
+    {"id": 51, "pos": [3, 6], "open": true}
+  ],
+  "switches": [
+    {"type": "soft", "pos": [6, 7], "targets": [43], "mode": "permanent", "set": "close"},
+    {"type": "soft", "pos": [5, 7], "targets": [23, 27, 51], "mode": "toggle"},
+    {"type": "heavy", "pos": [2, 3], "targets": [20, 23, 29], "mode": "toggle"},
+    {"type": "soft", "pos": [0, 0], "targets": [29, 36, 43], "mode": "toggle"},
+    {"type": "heavy", "pos": [4, 8], "targets": [23, 36, 51], "mode": "permanent", "set": "open"}
+  ]
+}

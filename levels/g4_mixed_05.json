@@ -1,0 +1,27 @@
+{
+  "name": "g4_mixed_05",
+  "grid": [
+    ".#######..##",
+    ".##.########",
+    "...######.##",
+    "..##.#######",
+    "...#.##.#.##",
+    ".#####...###",
+    "##G#.#######",
+    "........####"
+  ],
+  "start": [5, 2],
+  "goal": [6, 2],
+  "fragile": [[1, 6], [2, 6]],
+  "bridges": [
+    {"id": 16, "pos": [5, 10], "open": false},
+    {"id": 30, "pos": [6, 8], "open": false},
+    {"id": 47, "pos": [5, 5], "open": true}
+  ],
+  "switches": [
+    {"type": "heavy", "pos": [3, 7], "targets": [30], "mode": "toggle"},
+    {"type": "soft", "pos": [5, 3], "targets": [47], "mode": "toggle"},
+    {"type": "split", "pos": [7, 9], "cubes": [[6, 11], [7, 10]]},
+    {"type": "heavy", "pos": [3, 3], "targets": [16], "mode": "toggle"}
+  ]
+}

@@ -10,6 +10,10 @@ pip install -r requirements.txt
 python main.py                   # nạp màn mặc định
 python main.py levels/g3_switch_demo.json
 python -m unittest discover -s tests -t .    # chạy test
+
+# Thực nghiệm (F3)
+python -m experiments.run_all --repeats 3            # -> experiments/results/results.csv
+python -m experiments.benchmark_heuristics --repeats 3  # -> experiments/results/heuristics*.csv
 ```
 
 ## Đọc trước khi code (bắt buộc)
@@ -38,7 +42,9 @@ Repo GitHub nên có **gốc là thư mục `Source`** (chứa `main.py`) để 
 | `solvers/bfs.py`, `dfs.py` | BFS, DFS/IDS | E |
 | `solvers/ucs.py`, `astar.py`, `heuristics.py` | UCS, A*, heuristic | F |
 | `gui/app.py`, `main.py` | GUI (B vẽ ô dễ vỡ/cầu/công tắc, D làm phần còn lại) | D, B |
-| `experiments/run_all.py` | chạy thực nghiệm, xuất CSV (E: script chạy; F: biểu đồ) | E, F |
+| `experiments/common.py` | hạ tầng dùng chung: `run_one`, `measure`, `sanity_check`, `write_csv` | F |
+| `experiments/run_all.py` | chạy 4 solver trên bộ màn, xuất `results.csv` (E: script chạy; F: biểu đồ) | E, F |
+| `experiments/benchmark_heuristics.py` | so sánh các heuristic của A*, xuất `heuristics.csv` + `heuristics_summary.csv` | F |
 | `levels/` | file JSON màn chơi | A, B, C |
 | `tests/` | unit test | mọi người |
 
