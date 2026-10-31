@@ -10,6 +10,8 @@ from solvers.base import SearchResult
 
 # Thời gian diễn hoạt từng bước vẽ đường đi ở tốc độ 1.0x (ms)
 BASE_STEP_ANIM_MS: int = 320
+# Thời gian sóng quét cây tìm kiếm khi mở path (ms)
+SEARCH_WAVE_MS: int = 800
 
 # Bảng màu Dynamic theo từng Theme
 THEME_PALETTES = {
@@ -31,26 +33,32 @@ class RouteTracer:
         self.path_states: List[State] = []
         self.path_cells: Set[Cell] = set()
         self.visited_cells: Set[Cell] = set()
+        self.expanded_order_cells: List[Cell] = []
         self._overlay_surf: Optional[pygame.Surface] = None
 
-    def toggle(self, game: Game, result: Optional[SearchResult], now_ms: int,
-               current_state: Optional[State] = None) -> bool:
-        """Bật/tắt hiển thị đường đi. Trả về trạng thái hiển thị mới."""
-        if self.is_visible:
-            self.hide()
-            return False
-        if result and result.solved and result.path:
-            self.load(game, result, now_ms, current_state=current_state)
-            return True
-        return False
-
-    def hide(self) -> None:
-        """Ẩn đường đi và xóa dữ liệu diễn hoạt."""
-        self.is_visible = False
-        self.is_review_mode = False
+    def clear_data(self) -> None:
+        """Xóa dữ liệu nghiệm cũ nhưng giữ nguyên trạng thái bật/tắt (pre-toggle)."""
         self.path_states.clear()
         self.path_cells.clear()
         self.visited_cells.clear()
+        self.expanded_order_cells.clear()
+
+    def hide(self) -> None:
+        """Ẩn đường đi và xóa toàn bộ dữ liệu diễn hoạt."""
+        self.is_visible = False
+        self.is_review_mode = False
+        self.clear_data()
+
+    def toggle(self, game: Game, result: Optional[SearchResult], now_ms: int,
+               current_state: Optional[State] = None) -> bool:
+        """Bật/tắt hiển thị đường đi (hỗ trợ pre-toggle khi chưa chạy bộ giải)."""
+        if self.is_visible:
+            self.hide()
+            return False
+        self.is_visible = True
+        if result and result.solved and result.path:
+            self.load(game, result, now_ms, current_state=current_state)
+        return True
 
     def load(self, game: Game, result: SearchResult, now_ms: int,
              current_state: Optional[State] = None) -> None:
@@ -58,6 +66,15 @@ class RouteTracer:
         self.is_visible = True
         self.anim_start_time = now_ms
         self.visited_cells = {c for s in result.expanded_order for c in cells(s)}
+
+        # Trích xuất thứ tự thời gian mở rộng ô sàn
+        self.expanded_order_cells = []
+        seen = set()
+        for s in result.expanded_order:
+            for c in cells(s):
+                if c not in seen:
+                    seen.add(c)
+                    self.expanded_order_cells.append(c)
 
         st = game.initial_state()
         self.path_states = [st]
@@ -70,7 +87,6 @@ class RouteTracer:
                     self.path_cells.update(cells(st))
                     break
 
-        # Kích hoạt Review toàn cảnh nếu người dùng bấm Path khi khối gỗ đã ở đích
         goal_state = self.path_states[-1] if self.path_states else None
         self.is_review_mode = bool(current_state is not None and current_state == goal_state)
 
@@ -91,14 +107,29 @@ class RouteTracer:
         path_c = pal['path']
         glow_c = pal['glow']
 
-        # 1. Quầng sáng lưới trên mặt sàn các ô đã duyệt
-        for r, c in self.visited_cells:
-            x = off[0] + c * tw + r * skew
-            y = off[1] + r * th
-            quad = _tile_quad(x, y, tw, th, skew)
-            alpha = 100 if (r, c) not in self.path_cells else 35
-            pygame.draw.polygon(self._overlay_surf, (*glow_c, alpha), quad)
-            pygame.draw.polygon(self._overlay_surf, (*glow_c, 215), quad, 2)
+        # 1. Quầng sáng lưới trên mặt sàn
+        elapsed = max(0, now_ms - self.anim_start_time)
+        if elapsed < SEARCH_WAVE_MS and self.expanded_order_cells:
+            ratio = elapsed / float(SEARCH_WAVE_MS)
+            v_cnt = min(len(self.expanded_order_cells), max(1, int(ratio * len(self.expanded_order_cells))))
+            active_cells = self.expanded_order_cells[:v_cnt]
+            wavefront = set(self.expanded_order_cells[max(0, v_cnt - 3):v_cnt])
+            for r, c in active_cells:
+                x = off[0] + c * tw + r * skew
+                y = off[1] + r * th
+                quad = _tile_quad(x, y, tw, th, skew)
+                alpha = 100 if (r, c) not in self.path_cells else 35
+                pygame.draw.polygon(self._overlay_surf, (*glow_c, alpha), quad)
+                b_col = (255, 255, 255, 230) if (r, c) in wavefront else (*glow_c, 215)
+                pygame.draw.polygon(self._overlay_surf, b_col, quad, 2)
+        else:
+            for r, c in self.visited_cells:
+                x = off[0] + c * tw + r * skew
+                y = off[1] + r * th
+                quad = _tile_quad(x, y, tw, th, skew)
+                alpha = 100 if (r, c) not in self.path_cells else 35
+                pygame.draw.polygon(self._overlay_surf, (*glow_c, alpha), quad)
+                pygame.draw.polygon(self._overlay_surf, (*glow_c, 215), quad, 2)
 
         def _tile_center(r: int, c: int) -> Tuple[float, float]:
             return (off[0] + (c + 0.5) * tw + (r + 0.5) * skew,
@@ -117,7 +148,6 @@ class RouteTracer:
         if self.is_review_mode:
             # CHẾ ĐỘ REVIEW TOÀN CẢNH (KHI BẤM PATH SAU KHI ĐÃ Ở ĐÍCH)
             step_anim_ms = max(50, int(BASE_STEP_ANIM_MS / max(0.1, speed)))
-            elapsed = max(0, now_ms - self.anim_start_time)
             progress = elapsed / step_anim_ms if step_anim_ms > 0 else float(num_segments)
             curr_seg = int(progress)
 
@@ -197,7 +227,6 @@ class RouteTracer:
                 pygame.draw.line(self._overlay_surf, (*path_c, 255), p1, p2, 3)
                 pygame.draw.line(self._overlay_surf, (255, 255, 255, 220), p1, p2, 1)
 
-            # Phóng trước đúng 1 bước (chỉ khi chưa ở đích)
             if cur_idx < num_segments:
                 p1, p2 = centroids[cur_idx], centroids[cur_idx + 1]
                 pygame.draw.line(self._overlay_surf, (*path_c, 75), p1, p2, 6)
@@ -225,7 +254,7 @@ class RouteTracer:
                     pA, pB = c_list[0], c_list[1]
                     pygame.draw.line(self._overlay_surf, (*path_c, int(90 * alpha_mul)), pA, pB, 14)
                     pygame.draw.circle(self._overlay_surf, (*path_c, int(90 * alpha_mul)), (int(pA[0]), int(pA[1])), 7)
-                    pygame.draw.circle(self._overlay_surf, (*path_c, int(90 * alpha_mul)), (int(pB[0]), int(pB[1])), 7)
+                    pygame.draw.circle(self._overlay_surf, (*path_c, int(90 * alpha_mul)), (int(pA[0]), int(pA[1])), 7)
                     pygame.draw.line(self._overlay_surf, (255, 255, 255, int(180 * alpha_mul)), pA, pB, 2)
 
                 for p in c_list:
@@ -241,7 +270,6 @@ class RouteTracer:
                         pygame.draw.circle(self._overlay_surf, (*path_c, int(255 * alpha_mul)), (px, py), 3)
                         pygame.draw.circle(self._overlay_surf, (255, 255, 255, int(255 * alpha_mul)), (px, py), 1)
 
-            # Sóng lan tỏa khi khối gỗ đã ở đích
             if cur_idx >= num_segments and num_states > 0:
                 pulse_phase = ((now_ms // 15) % 60) / 60.0
                 pulse_r = int(7 + pulse_phase * 12)

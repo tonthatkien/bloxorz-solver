@@ -178,8 +178,7 @@ def draw_dock_bar(screen: pygame.Surface, mouse_pos: Tuple[int, int],
 
     # Nút Path / Hide Path
     if btn_path is not None:
-        can_path = bool(last_result and last_result.solved and last_result.path and not is_solving)
-        btn_path.enabled = can_path
+        btn_path.enabled = not is_solving
         if is_path_visible:
             btn_path.text = 'Hide Path'
             btn_path.bg_color = (254, 240, 138)

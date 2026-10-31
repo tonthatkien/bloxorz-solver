@@ -112,14 +112,13 @@ def run(level_path: str) -> None:
     def _start_solve(name: str) -> None:
         """Chạy thuật toán tìm kiếm trên luồng nền."""
         if not solver_mgr.is_solving:
-            tracer.hide()
+            tracer.clear_data()
             _reset_play_state()
             solver_mgr.start_solve(name, level)
 
     def _start_replay() -> None:
         """Phát lại lời giải tìm được."""
         if solver_mgr.start_replay():
-            tracer.hide()
             _reset_play_state()
 
     # Nút thanh tiêu đề
@@ -163,6 +162,8 @@ def run(level_path: str) -> None:
 
         # Kiểm tra kết quả luồng giải
         if solver_mgr.poll_queue():
+            if tracer.is_visible and solver_mgr.last_result and solver_mgr.last_result.solved:
+                tracer.load(game, solver_mgr.last_result, now, current_state=state)
             _start_replay()
 
         can_control = (not showing_intro and not won and not lost and not anim.falling_goal
@@ -254,6 +255,8 @@ def run(level_path: str) -> None:
                     if solver_mgr.is_replaying:
                         solver_mgr.stop_replay()
                     else:
+                        if tracer.is_visible and solver_mgr.last_result and solver_mgr.last_result.solved and not tracer.path_states:
+                            tracer.load(game, solver_mgr.last_result, now, current_state=state)
                         _start_replay()
                 elif btn_speed.is_clicked(event):
                     new_sp = solver_mgr.cycle_speed()
@@ -370,8 +373,7 @@ def run(level_path: str) -> None:
         level_pill_rect = draw_hud_status(screen, level.name, move_count, is_lvl_hover,
                                           font_hud_lbl, font_hud_val)
 
-        for b in (btn_home, btn_help, btn_restart, btn_new_game):
-            b.draw(screen, mouse_pos)
+        for b in (btn_home, btn_help, btn_restart, btn_new_game): b.draw(screen, mouse_pos)
 
         draw_dock_bar(screen, mouse_pos, solver_mgr.is_solving, solver_mgr.solving_name,
                       solver_mgr.last_solver_name, solver_mgr.last_result, solver_mgr.is_replaying, solver_mgr.replay_speed,
@@ -391,7 +393,6 @@ def run(level_path: str) -> None:
         if level_modal.is_open: level_modal.draw(screen, mouse_pos)
         if help_modal.is_open: help_modal.draw(screen, mouse_pos)
 
-        fader.update(now)
-        fader.draw(screen, now)
+        fader.update(now); fader.draw(screen, now)
         pygame.display.flip()
         clock.tick(FPS)
