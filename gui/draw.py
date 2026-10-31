@@ -13,11 +13,8 @@ from gui.draw_tiles import (
     terrain_view,
 )
 
-# Re-export các module con để giữ khả năng tương thích 100% với code gọi bên ngoài
 from gui.sky import draw_sky_with_clouds
 from gui.render_board import (
-    C,
-    TILE_DEPTH,
     grid_to_iso,
     calculate_iso_layout,
     _draw_floor_tile,
@@ -33,22 +30,14 @@ from gui.render_block import (
 from gui.effects import (
     VOID_FALL_GRAVITY,
     draw_goal_dissolve_block,
-    draw_shatter_block,
     draw_void_fall_block,
     draw_void_tip_block,
-    generate_shatter_pieces,
 )
 from gui.draw_cube import (
-    draw_active_indicator,
-    draw_animated_single_cube,
     draw_single_cube,
     draw_split_cubes,
 )
 
-
-# Thời gian (giây) để cả màn rớt hết khỏi màn hình;
-# nên bằng FALL_VOID_DURATION_MS / 1000 trong app.py
-VOID_FALL_SECONDS = 0.9
 
 
 def draw_scene(surface: pygame.Surface,
@@ -62,12 +51,11 @@ def draw_scene(surface: pygame.Surface,
                spawn_state: Optional[Tuple[int, int, int, float]] = None,
                *, bridge_mask: Optional[int] = None,
                theme=None) -> None:
-    """Vẽ địa hình trước khối và các hiệu ứng D1.
+    """Vẽ địa hình trước khối và các hiệu ứng.
 
     Truyền bridge_mask runtime khi state=None trong animation hoặc khi ẩn khối.
     Nếu không có snapshot, khung cảnh ban đầu dùng mask được khai báo trong level.
     """
-    is_shatter = (fall_state is not None and fall_state[0] == 'shatter')
     is_goal = (fall_state is not None and fall_state[0] == 'goal')
     is_void = (fall_state is not None and fall_state[0] == 'void')
     is_void_split = (fall_state is not None and fall_state[0] == 'void_split')
@@ -80,8 +68,7 @@ def draw_scene(surface: pygame.Surface,
     terrain = terrain_view(level, bridge_mask)
     bridge_positions = {bridge.pos for bridge in level.bridges.values()}
 
-    # Rơi khỏi sàn: cả màn (sàn + khối) cùng rớt xuống. Quãng rơi tăng theo t^2 và vừa đủ
-    # để ra khỏi màn hình lúc kết thúc.
+    # Rơi khỏi sàn: cả màn (sàn + khối) cùng rớt xuống.
     # Hiệu ứng riêng của khối (so với sàn) tùy vào số ô còn gác trên sàn sau khi lăn hụt:
     # - 'free': khối nằm hoàn toàn ngoài sàn -> lật thêm quanh mép và rơi nhanh hơn sàn.
     # - 'tip' : một ô gác sàn, một ô treo trên hố -> chúi xuống phía hố quanh mép sàn rồi rơi.
@@ -114,7 +101,7 @@ def draw_scene(surface: pygame.Surface,
         # Tâm chấn chấn động tại vị trí khối lăn hụt (hoặc vị trí ô sàn dễ vỡ)
         center_r = rolled.r + (1.0 if rolled.orient == VERT else 0.5)
         center_c = rolled.c + (1.0 if rolled.orient == HORIZ else 0.5)
-        # Dùng terrain (theo mask cầu) để cầu đóng được coi là ô trống, giống luật game.
+        # Dùng terrain (theo mask cầu) để cầu đóng được coi là ô trống.
         void_floor = [
             0 <= rr < level.rows and 0 <= cc < level.cols and terrain.grid[rr][cc] != '.'
             for rr, cc in cells(State(rolled.r, rolled.c, rolled.orient))
@@ -123,12 +110,12 @@ def draw_scene(surface: pygame.Surface,
             void_mode = 'free'
         elif not all(void_floor):
             void_mode = 'tip'
-        # Rơi ra mép sau (U): khối nằm sau map, vẽ sau cùng để thấy rõ nó tụt xuống.
+        # Rơi ra mép sau (U).
         void_ordered = (
             void_mode == 'tip' or void_mode == 'ride'
             or (void_mode == 'free' and vaction != 'U')
         )
-        # Khối rơi tự do xen kẽ với sàn: các hàng phía trước che khối khi rớt xuống.
+        # Khối rơi tự do xen kẽ với sàn.
         split_row = rolled.r + (2 if rolled.orient == VERT else 1) - 1
         if is_fragile_fall:
             split_row = rolled.r - 1
@@ -198,7 +185,7 @@ def draw_scene(surface: pygame.Surface,
                     continue
                 # Tính khoảng cách từ ô (r, c) tới tâm chấn
                 dist = math.hypot(r - center_r, c - center_c)
-                # Jitter giả ngẫu nhiên cố định theo tọa độ để mép vỡ so le tự nhiên
+                # Jitter giả ngẫu nhiên cố định theo tọa độ
                 jitter = (((r * 37 + c * 19) % 11) / 11.0 - 0.5) * 0.08
                 delay = max(0.0, dist * 0.045 + jitter)
                 t_eff = vt - delay
@@ -229,17 +216,11 @@ def draw_scene(surface: pygame.Surface,
             draw_void_block()
             void_drawn = True
 
-    # Vẽ vòng hoa quanh miệng hố đích sau khi toàn bộ địa hình sàn đã hoàn tất
-    # (Đảm bảo vòng hoa luôn trọn vẹn 100% không bị ô hàng trước che, và rơi đồng bộ theo sàn khi thua)
+    # Vẽ vòng hoa quanh miệng hố đích
     for gx, gy in goal_garlands:
         _draw_goal_garland(surface, _tile_quad(gx, gy, tw, th, skew), tw, th, theme=theme)
 
-    # Hiệu ứng Vỡ Vụn (Shatter): Các mảnh voxel nổ tung văng ra không gian
-    if is_shatter:
-        _, s_pieces, s_t, s_alpha = fall_state
-        draw_shatter_block(surface, s_pieces, s_t, s_alpha, tw, th, off, skew)
-
-    # 3. Rơi vào hố Goal: Khối chìm dần xuống hố và tan biến hoàn hảo
+    # 3. Rơi vào hố Goal: Khối chìm dần xuống hố và tan biến
     if is_goal:
         _, gr, gc, g_orient, g_alpha = fall_state
         gt = 1.0 - max(0.0, min(255, g_alpha)) / 255.0     # tiến độ 0 -> 1

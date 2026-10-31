@@ -1,21 +1,10 @@
-"""Bầu trời, mặt trời tỏa nắng, mây trôi và các hòn đảo lơ lửng."""
+"""Bầu trời, mặt trời, mây trôi và các hòn đảo."""
 from functools import lru_cache
-import math
 import random
 from typing import Optional, Tuple
 import pygame
 
-# Dữ liệu đám mây gốc (giữ tương thích 100%)
-CLOUDS_DATA = [
-    (180,   90, 220, 56, 0.88),
-    (980,   85, 250, 62, 0.85),
-    (100,  360, 210, 52, 0.80),
-    (1160, 350, 230, 56, 0.80),
-    (260,  640, 260, 65, 0.80),
-    (960,  630, 280, 70, 0.85),
-]
-
-# Cấu hình mây trôi mượt mà (trôi ngang ổn định, không giật dọc)
+# Cấu hình mây trôi
 CLOUDS_DRIFT_DATA = [
     # (orig_x, orig_y, width, height, alpha, speed_px_s, is_far)
     ( 540, 150, 160, 38, 0.50, 12.0, True),
@@ -28,18 +17,18 @@ CLOUDS_DRIFT_DATA = [
     ( 960, 630, 280, 70, 0.84, 26.0, False),
 ]
 
-# Cấu hình các hòn đảo lơ lửng phía xa (bố trí thoáng, thơ mộng)
+# Cấu hình các hòn đảo lơ lửng
 ISLANDS_DATA = [
     # (rel_x, rel_y, iw, ih, variant)
-    (0.08, 0.50, 115, 76, 0),   # Đảo trái trung tâm (có 2 cây cổ thụ Ghibli bồng bềnh)
-    (0.91, 0.38,  95, 64, 1),   # Đảo phải (có ngọn thông thanh thoát & hoa dại)
-    (0.85, 0.72,  75, 50, 2),   # Đảo nhỏ góc phải dưới (đồi cỏ & tảng đá rêu)
+    (0.08, 0.50, 115, 76, 0),   # Đảo trái trung tâm
+    (0.91, 0.38,  95, 64, 1),   # Đảo phải
+    (0.85, 0.72,  75, 50, 2),   # Đảo nhỏ góc phải dưới
 ]
 
 
 @lru_cache(maxsize=32)
 def _make_cloud_stamp(cw: int, ch: int, alpha: int) -> pygame.Surface:
-    """Tạo texture đám mây dạng vector bo tròn mềm mại và nướng sẵn alpha để không bị xung đột."""
+    """Tạo texture đám mây dạng vector."""
     scale = 4
     sw = (cw + 40) * scale
     sh = (ch + 35) * scale
@@ -68,7 +57,7 @@ def _make_cloud_stamp(cw: int, ch: int, alpha: int) -> pygame.Surface:
 
 @lru_cache(maxsize=16)
 def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
-    """Tạo texture hòn đảo đá/cỏ mini lơ lửng phía xa (phong cách Ghibli bồng bềnh, thơ mộng)."""
+    """Tạo texture hòn đảo đá/cỏ mini."""
     scale = 3
     sw = iw * scale
     sh = ih * scale
@@ -105,7 +94,7 @@ def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
     pygame.draw.polygon(surf, (125, 90, 64), poly_mid)
     pygame.draw.polygon(surf, (95, 68, 48), [poly_mid[0], (cx, int(sh * 0.53)), (cx - int(sw * 0.04), int(sh * 0.72)), poly_mid[3]])
 
-    # Mỏm đá dưới cùng thu nhọn tự nhiên
+    # Thu nhọn mỏm đá dưới cùng
     poly_tip = [
         (int(cx - sw * 0.18), int(sh * 0.71)),
         (int(cx + sw * 0.18), int(sh * 0.71)),
@@ -127,7 +116,7 @@ def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
         (int(cx + sw * 0.27), int(sh * 0.55)),
     ], 2)
 
-    # 3. Mặt thảm cỏ xanh mướt bo tròn bồng bềnh
+    # 3. Mặt thảm cỏ xanh
     grass_w = int(sw * 0.92)
     grass_h = int(sh * 0.25)
     gx = cx - grass_w // 2
@@ -136,9 +125,9 @@ def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
     pygame.draw.ellipse(surf, (128, 198, 98), (gx, gy, grass_w, grass_h))
     pygame.draw.ellipse(surf, (162, 228, 126), (gx + int(grass_w * 0.15), gy + 2, int(grass_w * 0.70), int(grass_h * 0.65)))
 
-    # 4. Cây cối & tiểu cảnh xinh xắn trên đỉnh đảo
+    # 4. Cây cối & tiểu cảnh trên đỉnh đảo
     if variant == 0:
-        # Cây cổ thụ tán tròn bồng bềnh phong cách Ghibli
+        # Cây cổ thụ tán tròn
         tx, ty = cx - 6, int(sh * 0.26)
         pygame.draw.polygon(surf, (110, 75, 48), [
             (tx - 3, ty), (tx + 3, ty), (tx + 2, ty - 22), (tx - 2, ty - 22)
@@ -159,7 +148,7 @@ def _make_island_stamp(iw: int, ih: int, variant: int) -> pygame.Surface:
         pygame.draw.circle(surf, (130, 215, 115), (tx2, ty - 18), 7)
 
     elif variant == 1:
-        # Ngọn thông cao thanh thoát & khóm hoa dại
+        # Ngọn thông & khóm hoa dại
         tx = cx + 8
         ty = int(sh * 0.27)
         pygame.draw.rect(surf, (105, 72, 45), (tx - 2, ty - 24, 4, 24))
@@ -186,7 +175,7 @@ _cached_sky_bg: Optional[Tuple[int, int, str, pygame.Surface]] = None
 
 
 def _render_sky_background(win_w: int, win_h: int, theme) -> pygame.Surface:
-    """Vẽ nền trời gradient, vầng mặt trời vàng rực rỡ và hòn đảo cố định vững chãi."""
+    """Vẽ nền trời, vầng mặt trời và hòn đảo."""
     surf = pygame.Surface((win_w, win_h))
     top_color = theme.sky_top
     bot_color = theme.sky_bot
@@ -206,7 +195,7 @@ def _render_sky_background(win_w: int, win_h: int, theme) -> pygame.Surface:
     sun_cx = int(980 * scale_x)
     sun_cy = int(95 * scale_y)
 
-    # 2. Vẽ các hòn đảo mini lơ lửng phía xa cố định trong background
+    # 2. Vẽ các hòn đảo mini cố định trong background
     for rel_x, rel_y, iw, ih, variant in ISLANDS_DATA:
         actual_iw = max(20, int(iw * scale))
         actual_ih = max(15, int(ih * scale))
@@ -262,7 +251,7 @@ def _render_sky_background(win_w: int, win_h: int, theme) -> pygame.Surface:
 
 
 def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int, theme=None) -> None:
-    """Vẽ bầu trời, mặt trời tỏa nắng, hòn đảo xa và mây trôi ngang mượt mà."""
+    """Vẽ bầu trời, mặt trời, hòn đảo và mây trôi ngang."""
     if theme is None:
         from gui.theme import GARDEN
         theme = GARDEN
@@ -272,7 +261,7 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int, theme=
             or _cached_sky_bg[1] != win_h or _cached_sky_bg[2] != theme.name):
         _cached_sky_bg = (win_w, win_h, theme.name, _render_sky_background(win_w, win_h, theme))
 
-    # 1. Vẽ nền trời tĩnh (gồm nền gradient, hòn đảo xa, mặt trời tỏa nắng)
+    # 1. Vẽ nền trời tĩnh (gồm nền trời, hòn đảo, mặt trời)
     surface.blit(_cached_sky_bg[3], (0, 0))
 
     scale_x = win_w / 1280.0
@@ -285,7 +274,7 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int, theme=
     # Cloud alpha scale factor theo theme
     cloud_alpha_scale = theme.cloud_alpha / 255.0
 
-    # 2. Vẽ các đám mây xa (trôi êm dịu, không giật)
+    # 2. Vẽ các đám mây xa
     for orig_x, orig_y, cw, ch, alpha_s, speed, is_far in CLOUDS_DRIFT_DATA:
         if not is_far:
             continue
@@ -302,7 +291,7 @@ def draw_sky_with_clouds(surface: pygame.Surface, win_w: int, win_h: int, theme=
         surface.blit(stamp_copy, (int(round(drift_x - stamp.get_width() // 2)),
                              int(round(actual_y - stamp.get_height() * 0.62))))
 
-    # 3. Vẽ các đám mây chính bồng bềnh trôi ngang màn hình (Main puffy clouds)
+    # 3. Vẽ các đám mây chính trôi ngang màn hình (Main puffy clouds)
     for orig_x, orig_y, cw, ch, alpha_s, speed, is_far in CLOUDS_DRIFT_DATA:
         if is_far:
             continue

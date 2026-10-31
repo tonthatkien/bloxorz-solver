@@ -1,854 +1,398 @@
-"""Main GUI for Bloxorz (Task D1/D2/D4/D5) - Centered Layout with Help Modal."""
-import math
-import queue
-import threading
-from typing import List, Optional, Tuple
+"""GUI chính của Bloxorz."""
+from typing import Optional, Tuple
 import pygame
 
 from game.block import Block
 from game.game import Game
 from game.level_loader import Level, load_level
 from game.state import STAND, State
-from gui.draw import (
-    calculate_iso_layout,
-    draw_scene,
-    draw_sky_with_clouds,
+from gui.animator import (
+    ANIM_DURATION_MS, REPLAY_MERGE_PAUSE_MS, REPLAY_SPLIT_PAUSE_MS,
+    REPLAY_STEP_DELAY_MS, REPLAY_SWAP_PAUSE_MS, AnimationManager, ease_roll,
 )
+from gui.draw import calculate_iso_layout, draw_scene, draw_sky_with_clouds
+from gui.help_modal import HelpModal
+from gui.hud import (
+    DOCK_W, DOCK_X, DOCK_Y, draw_dock_bar, draw_hud_status, draw_loss_banner, draw_win_banner,
+)
+from gui.intro import IntroScreen
+from gui.level_modal import LevelSelectorModal, get_next_level_path
+from gui.solver_runner import SolverManager
 from gui.theme import get_theme
-from gui.widgets import (
-    Button,
-    HelpModal,
-    LevelSelectorModal,
-    draw_aa_round_rect,
-)
-from solvers import astar, bfs, dfs, ucs
-from solvers.base import Limits, SearchResult, run_measured
+from gui.transition import SPAWN_DELAY_MS, ScreenFader
+from gui.widgets import Button
 
-# Window configuration
-WINDOW_SIZE = (1280, 720)
-FPS         = 60
-BG_COLOR    = (82, 115, 135)
-
-_KEY_MAP = {
-    pygame.K_UP:    'U',
-    pygame.K_DOWN:  'D',
-    pygame.K_LEFT:  'L',
-    pygame.K_RIGHT: 'R',
-}
-
-SOLVER_MODULES = {
-    'BFS': bfs,
-    'DFS': dfs,
-    'UCS': ucs,
-    'A*': astar,
-}
-
-# Bottom Dock Geometry
-DOCK_W = 868
-DOCK_H = 44
-DOCK_X = (WINDOW_SIZE[0] - DOCK_W) // 2
-DOCK_Y = WINDOW_SIZE[1] - DOCK_H - 18
+# Cấu hình cửa sổ
+WINDOW_SIZE, FPS = (1280, 720), 60
+_KEY_MAP = {pygame.K_UP: 'U', pygame.K_DOWN: 'D', pygame.K_LEFT: 'L', pygame.K_RIGHT: 'R'}
 
 
-def _draw_hud_pill(surf: pygame.Surface, x: int, y: int,
-                   lbl_s: pygame.Surface, val_s: pygame.Surface,
-                   bg_col=(255, 255, 255),
-                   border_col=(30, 41, 59)) -> int:
-    """Draw a rounded status pill for Level or Moves count."""
-    pad_x, gap, h = 16, 8, 38
-    w = pad_x * 2 + lbl_s.get_width() + gap + val_s.get_width()
-    draw_aa_round_rect(surf, (x, y, w, h), bg_col, border_radius=12,
-                       border_color=border_col, border_width=2,
-                       shadow_offset=2)
+def _step(game: Game, cur_state: State, action: str) -> Tuple[Optional[State], bool]:
+    """Thực hiện một bước đi thông qua Game Core."""
+    for act, next_st, _ in game.get_successors(cur_state):
+        if act == action:
+            return next_st, False
+    if action == 'S':
+        return None, False
+    if cur_state.split is not None:
+        c1, c2 = cur_state.split
+        dr, dc = {'U': (-1, 0), 'D': (1, 0), 'L': (0, -1), 'R': (0, 1)}.get(action, (0, 0))
+        target_cell = (c1[0] + dr, c1[1] + dc)
+        if target_cell == c2:
+            return None, False
+        return State(0, 0, STAND, cur_state.bridges, (target_cell, c2)), True
 
-    ly = y + (h - lbl_s.get_height()) // 2
-    vy = y + (h - val_s.get_height()) // 2
-    surf.blit(lbl_s, (x + pad_x, ly))
-    surf.blit(val_s, (x + pad_x + lbl_s.get_width() + gap, vy))
-    return w
-
-
-def _draw_dock_stats(surf: pygame.Surface, x: int, y: int, w: int, h: int,
-                     is_solving: bool, solving_name: str,
-                     last_solver_name: str, last_result: Optional[SearchResult],
-                     font_bold: pygame.font.Font, font_sm: pygame.font.Font) -> None:
-    """Draw the solver performance stats inside the bottom dock bar."""
-    draw_aa_round_rect(surf, (x, y, w, h), (241, 245, 249),
-                       border_radius=8, border_color=(30, 41, 59), border_width=1)
-
-    prev_clip = surf.get_clip()
-    surf.set_clip(pygame.Rect(x + 4, y, w - 8, h))
-
-    try:
-        if is_solving:
-            dots = "." * (((pygame.time.get_ticks() // 280) % 4))
-            txt = font_bold.render(f"Solving with {solving_name}{dots}", True, (29, 78, 216))
-            tx = x + (w - txt.get_width()) // 2
-            ty = y + (h - txt.get_height()) // 2
-            surf.blit(txt, (tx, ty))
-        elif last_result is not None:
-            if last_result.solved:
-                tag_surf = font_bold.render(f"[{last_solver_name}]", True, (22, 101, 52))
-                t_ms = last_result.time_sec * 1000.0
-                time_str = f"{t_ms:.1f}ms" if t_ms < 1000.0 else f"{last_result.time_sec:.2f}s"
-                mem_kb = last_result.peak_memory_kb
-                mem_str = f"{mem_kb:.0f}KB" if mem_kb < 1024.0 else f"{mem_kb / 1024.0:.1f}MB"
-                nodes_str = f"{last_result.expanded_nodes:,} nodes"
-                len_str = f"{last_result.length} moves"
-                info_str = f"{time_str}   •   {mem_str}   •   {nodes_str}   •   {len_str}"
-                info_surf = font_bold.render(info_str, True, (15, 23, 42))
-
-                total_w = tag_surf.get_width() + 10 + info_surf.get_width()
-                cur_x = x + max(10, (w - total_w) // 2)
-                surf.blit(tag_surf, (cur_x, y + (h - tag_surf.get_height()) // 2))
-                ix = cur_x + tag_surf.get_width() + 10
-                surf.blit(info_surf, (ix, y + (h - info_surf.get_height()) // 2))
-            else:
-                tag_surf = font_bold.render(f"[{last_solver_name}]", True, (185, 28, 28))
-                note = last_result.note if last_result.note else "No solution"
-                msg_surf = font_bold.render(f"No solution ({note})", True, (185, 28, 28))
-                total_w = tag_surf.get_width() + 8 + msg_surf.get_width()
-                cur_x = x + max(10, (w - total_w) // 2)
-                surf.blit(tag_surf, (cur_x, y + (h - tag_surf.get_height()) // 2))
-                mx = cur_x + tag_surf.get_width() + 8
-                surf.blit(msg_surf, (mx, y + (h - msg_surf.get_height()) // 2))
-        else:
-            hint_txt = "Select BFS, DFS, UCS or A* to solve level"
-            hint_surf = font_sm.render(hint_txt, True, (71, 85, 105))
-            tx = x + (w - hint_surf.get_width()) // 2
-            ty = y + (h - hint_surf.get_height()) // 2
-            surf.blit(hint_surf, (tx, ty))
-    finally:
-        surf.set_clip(prev_clip)
+    rolled = Block(cur_state.r, cur_state.c, cur_state.orient).roll(action)
+    return State(rolled.r, rolled.c, rolled.orient, cur_state.bridges, None), True
 
 
 def run(level_path: str) -> None:
-    """Launch the main Pygame GUI loop for Bloxorz."""
+    """Khởi chạy vòng lặp giao diện Pygame cho Bloxorz."""
     pygame.init()
     pygame.display.set_caption('Bloxorz')
     screen = pygame.display.set_mode(WINDOW_SIZE)
     clock  = pygame.time.Clock()
 
-    # Fonts
+    # Phông chữ
     sys_fonts = pygame.font.get_fonts()
-    font_family = ('trebuchetms' if 'trebuchetms' in sys_fonts
-                   else ('verdana' if 'verdana' in sys_fonts else 'arial'))
-    font_title   = pygame.font.SysFont(font_family, 44, bold=True)
-    font_hud_lbl = pygame.font.SysFont(font_family, 15, bold=True)
-    font_hud_val = pygame.font.SysFont(font_family, 20, bold=True)
-    font_btn     = pygame.font.SysFont(font_family, 15, bold=True)
-    font_dock_b  = pygame.font.SysFont(font_family, 14, bold=True)
-    font_dock_sm = pygame.font.SysFont(font_family, 13)
-    font_sub     = pygame.font.SysFont(font_family, 18)
+    fam = 'trebuchetms' if 'trebuchetms' in sys_fonts else ('verdana' if 'verdana' in sys_fonts else 'arial')
+    font_title, font_sub = pygame.font.SysFont(fam, 44, bold=True), pygame.font.SysFont(fam, 18)
+    font_hud_lbl, font_btn = pygame.font.SysFont(fam, 15, bold=True), pygame.font.SysFont(fam, 15, bold=True)
+    font_hud_val, font_dock_b = pygame.font.SysFont(fam, 20, bold=True), pygame.font.SysFont(fam, 14, bold=True)
+    font_dock_sm = pygame.font.SysFont(fam, 13)
 
-    # Core Game & Board Layout (Centered in window)
+    # Game Core và bố cục isometric
     current_level_path = level_path
     level: Level = load_level(current_level_path)
     game: Game   = Game(level)
     tw, th, offset, skew = calculate_iso_layout(level.rows, level.cols, *WINDOW_SIZE)
 
     state: State = game.initial_state()
-    won: bool    = False
-    lost: bool   = False
-    move_count: int = 0
+    won, lost, move_count = False, False, 0
 
-    # Animation configuration
-    ANIM_DURATION_MS = 140
-    FALL_GOAL_DURATION_MS = 600
-    FALL_VOID_DURATION_MS = 900
-    SPAWN_DURATION_MS = 460
-    SPAWN_HEIGHT = 8.5
-    REPLAY_STEP_DELAY_MS = 70
-    REPLAY_SPLIT_PAUSE_MS = 650
-    REPLAY_SWAP_PAUSE_MS = 380
-    REPLAY_MERGE_PAUSE_MS = 480
-    replay_speed = 1.0
+    # Quản lý hoạt ảnh, luồng giải, màn hình mở đầu và chuyển cảnh
+    anim = AnimationManager()
+    solver_mgr = SolverManager()
+    intro = IntroScreen(WINDOW_SIZE, current_level_path)
+    fader = ScreenFader(WINDOW_SIZE)
+    showing_intro = True
 
-    def _ease(t: float) -> float:
-        return t * t * (3.0 - 2.0 * t)
-
-    animating = False
-    anim_start_r = 0
-    anim_start_c = 0
-    anim_start_orient = STAND
-    anim_action = 'D'
-    anim_next_state: Optional[State] = None
-    anim_is_void = False
-    anim_start_time = 0
-    buffered_action: Optional[str] = None
-    anim_is_split = False
-    anim_split_tuple: Optional[Tuple[Tuple[int, int], Tuple[int, int]]] = None
-    fall_is_split = False
-    fall_split_tuple: Optional[Tuple[Tuple[int, int], Tuple[int, int]]] = None
-
-    falling_goal = False
-    falling_void = False
-    fall_start_time = 0
-    fall_r, fall_c, fall_orient = 0.0, 0.0, STAND
-    fall_shatter_pieces: list = []
-
-    spawning = True
-    spawn_start_time = pygame.time.get_ticks()
-    spawn_r = state.r
-    spawn_c = state.c
-    spawn_orient = state.orient
-    z_spawn = SPAWN_HEIGHT
-
-    # Solver & Replay management
-    is_solving = False
-    solving_name = ''
-    solve_req_id = 0
-    solve_queue: queue.Queue = queue.Queue()
-    last_result: Optional[SearchResult] = None
-    last_solver_name = ''
-
-    is_replaying = False
-    replay_actions: List[str] = []
-    replay_index = 0
-    replay_last_time = 0
-
-    def _step(cur_state: State, action: str) -> Tuple[Optional[State], bool]:
-        """Execute a step via Game Core (game.get_successors)."""
-        for act, next_st, _ in game.get_successors(cur_state):
-            if act == action:
-                return next_st, False
-
-        # Action 'S' chỉ có hiệu lực khi ở trạng thái split (hoán đổi active cube)
-        if action == 'S':
-            return None, False
-
-        # Nếu đang ở trạng thái split: đi ra ngoài sàn -> rơi vực
-        if cur_state.split is not None:
-            c1, c2 = cur_state.split
-            dr, dc = {'U': (-1, 0), 'D': (1, 0), 'L': (0, -1), 'R': (0, 1)}.get(action, (0, 0))
-            target_cell = (c1[0] + dr, c1[1] + dc)
-            if target_cell == c2:
-                return None, False  # Bị chặn bởi cube còn lại
-            phantom_split = (target_cell, c2)
-            phantom_state = State(0, 0, STAND, cur_state.bridges, phantom_split)
-            return phantom_state, True
-
-        # Không nằm trong successors -> khối lăn ra ngoài sàn rơi vực
-        rolled = Block(cur_state.r, cur_state.c, cur_state.orient).roll(action)
-        phantom_state = State(rolled.r, rolled.c, rolled.orient, cur_state.bridges, None)
-        return phantom_state, True
-
-    def load_level_and_reset(path: str) -> None:
-        """Load a new level or restart and reset all animation states."""
-        nonlocal level, game, current_level_path, tw, th, offset, skew
-        nonlocal state, won, lost, move_count, animating
-        nonlocal falling_goal, falling_void, buffered_action
-        nonlocal fall_shatter_pieces, spawning, spawn_start_time
-        nonlocal spawn_r, spawn_c, spawn_orient, z_spawn
-        nonlocal is_replaying, last_result, last_solver_name
-        nonlocal anim_is_split, anim_split_tuple
-        nonlocal fall_is_split, fall_split_tuple
-        nonlocal solve_req_id, is_solving, solving_name
-
-        solve_req_id += 1
-        is_solving = False
-        solving_name = ''
-        is_replaying = False
-        anim_is_split = False
-        anim_split_tuple = None
-        fall_is_split = False
-        fall_split_tuple = None
-        if path != current_level_path:
-            last_result = None
-            last_solver_name = ''
-
+    def load_level_and_reset(path: str, delay_ms: int = 0) -> None:
+        """Tải màn chơi và thiết lập lại trạng thái."""
+        nonlocal level, game, current_level_path, tw, th, offset, skew, state, won, lost, move_count
+        solver_mgr.reset(reset_result=(path != current_level_path))
         current_level_path = path
         level = load_level(current_level_path)
         game = Game(level)
         tw, th, offset, skew = calculate_iso_layout(level.rows, level.cols, *WINDOW_SIZE)
+        state, won, lost, move_count = game.initial_state(), False, False, 0
+        anim.reset_for_level(pygame.time.get_ticks(), delay_ms=delay_ms)
 
-        state = game.initial_state()
-        won, lost, move_count = False, False, 0
-        animating = False
-        anim_is_split = False
-        anim_split_tuple = None
-        falling_goal = False
-        falling_void = False
-        buffered_action = None
-        fall_shatter_pieces = []
-        spawning = True
-        spawn_start_time = pygame.time.get_ticks()
-        spawn_r = state.r
-        spawn_c = state.c
-        spawn_orient = state.orient
-        z_spawn = SPAWN_HEIGHT
+    def _enter_game() -> None:
+        nonlocal showing_intro
+        showing_intro = False
+        (load_level_and_reset(intro.selected_level_path, delay_ms=SPAWN_DELAY_MS)
+         if intro.selected_level_path != current_level_path
+         else anim.reset_for_level(pygame.time.get_ticks(), delay_ms=SPAWN_DELAY_MS))
+
+    def _return_to_intro() -> None:
+        nonlocal showing_intro
+        intro.open(current_level_path)
+        showing_intro = True
+
+    def _reset_play_state() -> None:
+        nonlocal state, won, lost, move_count
+        state, won, lost, move_count = game.initial_state(), False, False, 0
+        anim.reset_for_level(pygame.time.get_ticks())
+        anim.spawning, anim.z_spawn = False, 0.0
 
     def _start_solve(name: str) -> None:
-        """Start solver on a background thread without freezing the UI."""
-        nonlocal is_solving, solving_name, is_replaying, solve_req_id
-        nonlocal state, won, lost, move_count, animating, falling_goal, falling_void
-        nonlocal buffered_action, fall_shatter_pieces
-        nonlocal anim_is_split, anim_split_tuple, fall_is_split, fall_split_tuple
-
-        if is_solving:
-            return
-
-        is_replaying = False
-
-        state = game.initial_state()
-        won, lost, move_count = False, False, 0
-        animating = False
-        anim_is_split = False
-        anim_split_tuple = None
-        fall_is_split = False
-        fall_split_tuple = None
-        falling_goal = False
-        falling_void = False
-        buffered_action = None
-        fall_shatter_pieces = []
-
-        solve_req_id += 1
-        current_req_id = solve_req_id
-        is_solving = True
-        solving_name = name
-
-        def _worker(solver_fn, game_level, s_name, req_id):
-            try:
-                solver_game = Game(game_level)
-                limits = Limits(max_nodes=2_000_000, timeout_sec=60.0)
-                res = run_measured(solver_fn, solver_game, limits=limits, repeats=1)
-            except Exception as exc:
-                res = SearchResult(solved=False, note=str(exc))
-            solve_queue.put((req_id, s_name, res))
-
-        solver_mod = SOLVER_MODULES[name]
-        thread = threading.Thread(
-            target=_worker,
-            args=(solver_mod.solve, level, name, current_req_id),
-            daemon=True
-        )
-        thread.start()
+        """Chạy thuật toán tìm kiếm trên luồng nền."""
+        if not solver_mgr.is_solving:
+            _reset_play_state()
+            solver_mgr.start_solve(name, level)
 
     def _start_replay() -> None:
-        """Start animated replay of the solved path."""
-        nonlocal is_replaying, replay_actions, replay_index, replay_last_time
-        nonlocal state, won, lost, move_count, animating, falling_goal, falling_void
-        nonlocal buffered_action
-        nonlocal anim_is_split, anim_split_tuple, fall_is_split, fall_split_tuple
+        """Phát lại lời giải tìm được."""
+        if solver_mgr.start_replay():
+            _reset_play_state()
 
-        if not last_result or not last_result.solved or not last_result.path:
-            return
+    # Nút thanh tiêu đề
+    rx = WINDOW_SIZE[0] - 24
+    btn_new_game = Button((rx - 120, 20, 120, 38), 'New Game', font_btn, border_radius=14)
+    btn_restart = Button((rx - 242, 20, 110, 38), 'Restart', font_btn, border_radius=14)
+    btn_help = Button((rx - 294, 20, 40, 38), '?', font_btn, border_radius=12)
+    btn_home = Button((rx - 346, 20, 40, 38), '', font_btn, border_radius=12, icon='home')
 
-        state = game.initial_state()
-        won, lost, move_count = False, False, 0
-        animating = False
-        anim_is_split = False
-        anim_split_tuple = None
-        fall_is_split = False
-        fall_split_tuple = None
-        falling_goal = False
-        falling_void = False
-        buffered_action = None
-
-        is_replaying = True
-        replay_actions = list(last_result.path)
-        replay_index = 0
-        replay_last_time = pygame.time.get_ticks() + int(200 / replay_speed)
-
-    # Top-right header buttons
-    btn_help     = Button((WINDOW_SIZE[0] - 24 - 120 - 12 - 110 - 12 - 40, 20, 40, 38),
-                          '?', font_btn, border_radius=12)
-    btn_restart  = Button((WINDOW_SIZE[0] - 24 - 120 - 12 - 110, 20, 110, 38),
-                          'Restart', font_btn, border_radius=14)
-    btn_new_game = Button((WINDOW_SIZE[0] - 24 - 120, 20, 120, 38),
-                          'New Game', font_btn, border_radius=14)
-
-    # Bottom Dock buttons (Centered)
-    btn_bfs = Button((DOCK_X + 14, DOCK_Y + 6, 52, 32),
-                     'BFS', font_dock_b, border_radius=8)
-    btn_dfs = Button((DOCK_X + 14 + 58, DOCK_Y + 6, 52, 32),
-                     'DFS', font_dock_b, border_radius=8)
-    btn_ucs = Button((DOCK_X + 14 + 116, DOCK_Y + 6, 52, 32),
-                     'UCS', font_dock_b, border_radius=8)
-    btn_astar = Button((DOCK_X + 14 + 174, DOCK_Y + 6, 52, 32),
-                       'A*', font_dock_b, border_radius=8)
-    btn_action = Button((DOCK_X + 14 + 236, DOCK_Y + 6, 126, 32),
-                        'Replay Solution', font_dock_b, border_radius=8, enabled=False)
-    btn_speed  = Button((DOCK_X + 14 + 236 + 132, DOCK_Y + 6, 52, 32),
-                        '1.0x', font_dock_b, border_radius=8, enabled=True)
-
-    stats_box_x = DOCK_X + 14 + 236 + 132 + 58
+    # Nút thanh dock
+    btn_bfs = Button((DOCK_X + 14, DOCK_Y + 6, 52, 32), 'BFS', font_dock_b, border_radius=8)
+    btn_dfs = Button((DOCK_X + 72, DOCK_Y + 6, 52, 32), 'DFS', font_dock_b, border_radius=8)
+    btn_ucs = Button((DOCK_X + 130, DOCK_Y + 6, 52, 32), 'UCS', font_dock_b, border_radius=8)
+    btn_astar = Button((DOCK_X + 188, DOCK_Y + 6, 52, 32), 'A*', font_dock_b, border_radius=8)
+    btn_action = Button((DOCK_X + 250, DOCK_Y + 6, 126, 32), 'Replay Solution', font_dock_b, border_radius=8, enabled=False)
+    btn_speed = Button((DOCK_X + 382, DOCK_Y + 6, 52, 32), '1.0x', font_dock_b, border_radius=8, enabled=True)
+    dock_algo_btns = [(btn_bfs, 'BFS'), (btn_dfs, 'DFS'), (btn_ucs, 'UCS'), (btn_astar, 'A*')]
+    stats_box_x = DOCK_X + 440
     stats_box_w = DOCK_W - (stats_box_x - DOCK_X) - 14
 
-    # Win / Loss Banner Buttons
-    banner_w, banner_h = 460, 220
-    b_px = (WINDOW_SIZE[0] - banner_w) // 2
-    b_py = (WINDOW_SIZE[1] - banner_h) // 2
-    btn_win_restart   = Button((b_px + 35, b_py + 145, 180, 44), 'Play Again', font_btn,
-                               bg_color=(187, 247, 208), hover_color=(134, 239, 172),
-                               border_color=(30, 41, 59), text_color=(20, 83, 45),
-                               border_width=2, shadow_offset=2)
-    btn_win_new_game  = Button((b_px + 245, b_py + 145, 180, 44), 'New Game', font_btn,
-                               bg_color=(187, 247, 208), hover_color=(134, 239, 172),
-                               border_color=(30, 41, 59), text_color=(20, 83, 45),
-                               border_width=2, shadow_offset=2)
-    btn_loss_restart  = Button((b_px + 35, b_py + 145, 180, 44), 'Try Again', font_btn,
-                               bg_color=(254, 202, 202), hover_color=(252, 165, 165),
-                               border_color=(30, 41, 59), text_color=(153, 27, 27),
-                               border_width=2, shadow_offset=2)
-    btn_loss_new_game = Button((b_px + 245, b_py + 145, 180, 44), 'New Game', font_btn,
-                               bg_color=(254, 202, 202), hover_color=(252, 165, 165),
-                               border_color=(30, 41, 59), text_color=(153, 27, 27),
-                               border_width=2, shadow_offset=2)
+    # Nút banner thắng/thua
+    banner_w, banner_h = 480, 220
+    b_px, b_py = (WINDOW_SIZE[0] - banner_w) // 2, (WINDOW_SIZE[1] - banner_h) // 2
+    b_kw = dict(border_color=(30, 41, 59), border_width=2, shadow_offset=2)
+    win_kw = dict(bg_color=(187, 247, 208), hover_color=(134, 239, 172), text_color=(20, 83, 45), **b_kw)
+    loss_kw = dict(bg_color=(254, 202, 202), hover_color=(252, 165, 165), text_color=(153, 27, 27), **b_kw)
+    btn_win_restart  = Button((b_px + 20, b_py + 145, 130, 44), 'Play Again', font_btn, **win_kw)
+    btn_win_new_game = Button((b_px + 165, b_py + 145, 130, 44), 'Levels', font_btn, **win_kw)
+    btn_win_next     = Button((b_px + 310, b_py + 145, 150, 44), 'Next Level', font_btn, **win_kw)
+    btn_loss_restart = Button((b_px + 45, b_py + 145, 180, 44), 'Try Again', font_btn, **loss_kw)
+    btn_loss_new_game = Button((b_px + 255, b_py + 145, 180, 44), 'New Game', font_btn, **loss_kw)
 
-    # Dialog Modals
     level_modal = LevelSelectorModal(WINDOW_SIZE, font_hud_val, font_btn, font_sub)
     help_modal  = HelpModal(WINDOW_SIZE, font_hud_val, font_dock_b, font_btn, font_dock_sm)
     level_pill_rect = pygame.Rect(24, 20, 160, 38)
 
     while True:
-        while not solve_queue.empty():
-            try:
-                req_id, s_name, res = solve_queue.get_nowait()
-            except queue.Empty:
-                break
-            if req_id == solve_req_id:
-                last_result = res
-                last_solver_name = s_name
-                is_solving = False
-                if last_result.solved and last_result.path:
-                    _start_replay()
-
-        can_control = (not won and not lost and not falling_goal
-                       and not falling_void and not spawning
-                       and not level_modal.is_open and not help_modal.is_open
-                       and not is_replaying and not is_solving)
+        now = pygame.time.get_ticks()
         mouse_pos = pygame.mouse.get_pos()
 
-        # Update cursor hover state
-        if level_modal.is_open:
-            is_hovering = level_modal.is_any_hovered(mouse_pos)
-        elif help_modal.is_open:
-            is_hovering = help_modal.is_any_hovered(mouse_pos)
-        else:
-            is_hovering = (
-                level_pill_rect.collidepoint(mouse_pos) or
-                btn_help.is_hovered(mouse_pos) or
-                btn_restart.is_hovered(mouse_pos) or
-                btn_new_game.is_hovered(mouse_pos) or
-                btn_bfs.is_hovered(mouse_pos) or
-                btn_dfs.is_hovered(mouse_pos) or
-                btn_ucs.is_hovered(mouse_pos) or
-                btn_astar.is_hovered(mouse_pos) or
-                btn_action.is_hovered(mouse_pos) or
-                btn_speed.is_hovered(mouse_pos) or
-                (won and (btn_win_restart.is_hovered(mouse_pos) or
-                          btn_win_new_game.is_hovered(mouse_pos))) or
-                (lost and (btn_loss_restart.is_hovered(mouse_pos) or
-                           btn_loss_new_game.is_hovered(mouse_pos)))
-            )
+        # Kiểm tra kết quả luồng giải
+        if solver_mgr.poll_queue():
+            _start_replay()
+
+        can_control = (not showing_intro and not won and not lost and not anim.falling_goal
+                       and not anim.falling_void and not anim.spawning and not fader.is_fading
+                       and not level_modal.is_open and not help_modal.is_open
+                       and not solver_mgr.is_replaying and not solver_mgr.is_solving)
+
+        # Cập nhật con trỏ chuột
+        is_hovering = (
+            intro.is_any_hovered(mouse_pos) if showing_intro else
+            level_modal.is_any_hovered(mouse_pos) if level_modal.is_open else
+            help_modal.is_any_hovered(mouse_pos) if help_modal.is_open else
+            (level_pill_rect.collidepoint(mouse_pos) or
+             any(b.is_hovered(mouse_pos) for b in (btn_home, btn_help, btn_restart, btn_new_game, btn_action, btn_speed)) or
+             any(b.is_hovered(mouse_pos) for b, _ in dock_algo_btns) or
+             (won and (btn_win_restart.is_hovered(mouse_pos) or btn_win_new_game.is_hovered(mouse_pos) or btn_win_next.is_hovered(mouse_pos))) or
+             (lost and (btn_loss_restart.is_hovered(mouse_pos) or btn_loss_new_game.is_hovered(mouse_pos))))
+        )
         try:
-            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if is_hovering
-                                     else pygame.SYSTEM_CURSOR_ARROW)
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if is_hovering else pygame.SYSTEM_CURSOR_ARROW)
         except pygame.error:
             pass
 
-        # Event Loop
+        # Xử lý sự kiện
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 pygame.quit()
                 return
 
-            # Priority 1: Help Modal
+            if fader.is_fading:
+                continue
+
+            # Sự kiện màn hình mở đầu
+            if showing_intro:
+                action = intro.handle_event(event)
+                if action == 'play':
+                    fader.start(now, _enter_game)
+                elif action == 'quit':
+                    pygame.quit()
+                    return
+                continue
+
             if help_modal.is_open:
                 help_modal.handle_event(event)
                 continue
 
-            # Priority 2: Level Selector Modal
             if level_modal.is_open:
                 selected_level = level_modal.handle_event(event)
                 if selected_level is not None:
-                    load_level_and_reset(selected_level)
+                    fader.start(now, lambda lvl=selected_level: load_level_and_reset(lvl, delay_ms=SPAWN_DELAY_MS))
                 continue
 
-            # Keyboard Events
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    return
-
-                if event.key == pygame.K_h:
+                if won and event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    nxt = get_next_level_path(current_level_path)
+                    (fader.start(now, lambda p=nxt: load_level_and_reset(p, delay_ms=SPAWN_DELAY_MS))
+                     if nxt else level_modal.open(current_level_path))
+                elif event.key == pygame.K_h:
                     help_modal.open()
-
                 elif event.key == pygame.K_r:
                     load_level_and_reset(current_level_path)
-
-                # Bấm phím SPACE để đổi quyền điều khiển khi ở trạng thái tách 2 cube (Task D4)
-                elif can_control and event.key == pygame.K_SPACE:
-                    if not animating:
-                        ns, _ = _step(state, 'S')
-                        if ns is not None:
-                            state = ns
-
+                elif can_control and event.key == pygame.K_SPACE and not anim.animating:
+                    ns, _ = _step(game, state, 'S')
+                    if ns is not None:
+                        state = ns
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
-                    if not animating:
-                        ns, anim_is_void = _step(state, action)
+                    if not anim.animating:
+                        ns, is_void = _step(game, state, action)
                         if ns is not None:
-                            animating = True
-                            if state.split is not None:
-                                anim_is_split = True
-                                anim_start_r, anim_start_c = state.split[0]
-                                anim_start_orient = STAND
-                                anim_split_tuple = state.split
-                            else:
-                                anim_is_split = False
-                                anim_start_r = state.r
-                                anim_start_c = state.c
-                                anim_start_orient = state.orient
-                                anim_split_tuple = None
-                            anim_action = action
-                            anim_next_state = ns
-                            anim_start_time = pygame.time.get_ticks()
-                            buffered_action = None
-                    else:
-                        if not anim_is_void:
-                            elapsed = pygame.time.get_ticks() - anim_start_time
-                            if elapsed / ANIM_DURATION_MS > 0.35:
-                                buffered_action = action
+                            anim.start_roll(state, action, ns, is_void, now)
+                    elif not anim.anim_is_void:
+                        elapsed = now - anim.anim_start_time
+                        if elapsed / ANIM_DURATION_MS > 0.35:
+                            anim.buffered_action = action
 
-            # Mouse Click Events
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if level_pill_rect.collidepoint(event.pos) or btn_new_game.is_clicked(event):
                     level_modal.open(current_level_path)
+                elif btn_home.is_clicked(event):
+                    if solver_mgr.is_replaying:
+                        solver_mgr.stop_replay()
+                    fader.start(now, _return_to_intro)
                 elif btn_help.is_clicked(event):
                     help_modal.open()
                 elif btn_restart.is_clicked(event):
                     load_level_and_reset(current_level_path)
-                elif btn_bfs.is_clicked(event):
-                    _start_solve('BFS')
-                elif btn_dfs.is_clicked(event):
-                    _start_solve('DFS')
-                elif btn_ucs.is_clicked(event):
-                    _start_solve('UCS')
-                elif btn_astar.is_clicked(event):
-                    _start_solve('A*')
                 elif btn_action.is_clicked(event):
-                    if is_replaying:
-                        is_replaying = False
+                    if solver_mgr.is_replaying:
+                        solver_mgr.stop_replay()
                     else:
                         _start_replay()
                 elif btn_speed.is_clicked(event):
-                    if replay_speed == 0.5:
-                        replay_speed = 1.0
-                    elif replay_speed == 1.0:
-                        replay_speed = 2.0
-                    else:
-                        replay_speed = 0.5
-                    btn_speed.text = f"{replay_speed}x"
-                elif won:
-                    if btn_win_restart.is_clicked(event):
-                        load_level_and_reset(current_level_path)
-                    elif btn_win_new_game.is_clicked(event):
-                        level_modal.open(current_level_path)
-                elif lost:
-                    if btn_loss_restart.is_clicked(event):
-                        load_level_and_reset(current_level_path)
-                    elif btn_loss_new_game.is_clicked(event):
-                        level_modal.open(current_level_path)
-
-        # Replay Progression
-        if (is_replaying and not animating and not falling_goal
-                and not falling_void and not spawning):
-            now = pygame.time.get_ticks()
-            if now >= replay_last_time:
-                if replay_index < len(replay_actions):
-                    act = replay_actions[replay_index]
-                    replay_index += 1
-
-                    cur_anim_dur = int(ANIM_DURATION_MS / replay_speed)
-                    cur_step_delay = int(REPLAY_STEP_DELAY_MS / replay_speed)
-
-                    if act == 'S':
-                        # Space Swap: đổi cube active tức thì (không tăng move_count)
-                        ns, _ = _step(state, 'S')
-                        if ns is not None:
-                            state = ns
-                            anim_is_split = True
-                            anim_split_tuple = state.split
-                            # Tạm dừng nhẹ để người xem thấy rõ khối active vừa đổi chất liệu
-                            replay_last_time = now + int(REPLAY_SWAP_PAUSE_MS / replay_speed)
-                    else:
-                        ns, anim_is_void = _step(state, act)
-                        if ns is not None:
-                            animating = True
-                            if state.split is not None:
-                                anim_is_split = True
-                                anim_start_r, anim_start_c = state.split[0]
-                                anim_start_orient = STAND
-                                anim_split_tuple = state.split
-                            else:
-                                anim_is_split = False
-                                anim_start_r = state.r
-                                anim_start_c = state.c
-                                anim_start_orient = state.orient
-                                anim_split_tuple = None
-
-                            anim_action = act
-                            anim_next_state = ns
-                            anim_start_time = now
-                            buffered_action = None
-                            replay_last_time = now + cur_anim_dur + cur_step_delay
+                    new_sp = solver_mgr.cycle_speed()
+                    btn_speed.text = f"{new_sp}x"
+                elif won and btn_win_next.is_clicked(event):
+                    nxt = get_next_level_path(current_level_path)
+                    (fader.start(now, lambda p=nxt: load_level_and_reset(p, delay_ms=SPAWN_DELAY_MS))
+                     if nxt else level_modal.open(current_level_path))
+                elif (won and btn_win_restart.is_clicked(event)) or (lost and btn_loss_restart.is_clicked(event)):
+                    load_level_and_reset(current_level_path)
+                elif (won and btn_win_new_game.is_clicked(event)) or (lost and btn_loss_new_game.is_clicked(event)):
+                    level_modal.open(current_level_path)
                 else:
-                    is_replaying = False
+                    for b, algo in dock_algo_btns:
+                        if b.is_clicked(event):
+                            _start_solve(algo)
+                            break
 
-        # Spawn Animation
-        if spawning:
-            now = pygame.time.get_ticks()
-            elapsed = now - spawn_start_time
-            if elapsed >= SPAWN_DURATION_MS:
-                spawning = False
-                z_spawn = 0.0
-            else:
-                t = elapsed / float(SPAWN_DURATION_MS)
-                if t <= 0.78:
-                    tf = t / 0.78
-                    z_spawn = SPAWN_HEIGHT * (1.0 - tf * tf)
+        # Vẽ màn hình mở đầu
+        if showing_intro:
+            intro.draw(screen, mouse_pos, now)
+            fader.update(now)
+            fader.draw(screen, now)
+            pygame.display.flip()
+            clock.tick(FPS)
+            continue
+
+        # Replay lời giải
+        if (solver_mgr.is_replaying and not anim.animating and not anim.falling_goal
+                and not anim.falling_void and not anim.spawning):
+            can_step = (now >= solver_mgr.replay_last_time)
+            act = solver_mgr.get_next_replay_action(now, can_step)
+            if act is not None:
+                cur_anim_dur = int(ANIM_DURATION_MS / solver_mgr.replay_speed)
+                cur_step_delay = int(REPLAY_STEP_DELAY_MS / solver_mgr.replay_speed)
+                if act == 'S':
+                    ns, _ = _step(game, state, 'S')
+                    if ns is not None:
+                        state = ns
+                        anim.anim_is_split = True
+                        anim.anim_split_tuple = state.split
+                        solver_mgr.replay_last_time = now + int(REPLAY_SWAP_PAUSE_MS / solver_mgr.replay_speed)
                 else:
-                    tb = (t - 0.78) / 0.22
-                    z_spawn = 0.22 * math.sin(tb * math.pi) * (1.0 - tb * 0.5)
+                    ns, is_void = _step(game, state, act)
+                    if ns is not None:
+                        anim.start_roll(state, act, ns, is_void, now)
+                        solver_mgr.replay_last_time = now + cur_anim_dur + cur_step_delay
 
-        # Block Roll Animation
-        anim_progress = 0.0
-        if animating:
-            now = pygame.time.get_ticks()
-            cur_anim_dur = int(ANIM_DURATION_MS / (replay_speed if is_replaying else 1.0))
-            raw_t = (now - anim_start_time) / cur_anim_dur
+        # Hoạt ảnh khối xuất hiện
+        anim.update_spawn(now)
+
+        # Hoạt ảnh lăn khối
+        if anim.animating:
+            cur_speed = solver_mgr.replay_speed if solver_mgr.is_replaying else 1.0
+            cur_anim_dur = int(ANIM_DURATION_MS / cur_speed)
+            raw_t = (now - anim.anim_start_time) / cur_anim_dur
             if raw_t >= 1.0:
-                animating = False
+                anim.animating = False
                 move_count += 1
-
-                if anim_is_void:
-                    falling_void = True
-                    fall_is_split = anim_is_split
-                    fall_split_tuple = anim_split_tuple
-                    fall_start_time = pygame.time.get_ticks()
-                    buffered_action = None
-                    is_replaying = False
+                if anim.anim_is_void:
+                    anim.start_fall_void(now)
+                    solver_mgr.stop_replay()
                 else:
                     was_split = (state.split is not None)
-                    state = anim_next_state
+                    state = anim.anim_next_state
                     is_split = (state.split is not None)
-
-                    # Dramatic Pause khi phát hiện sự kiện Tách hoặc Ghép trong Replay
-                    if is_replaying:
+                    if solver_mgr.is_replaying:
                         if not was_split and is_split:
-                            # Vừa đứng lên Split Switch: Tách đôi thành công!
-                            replay_last_time = max(
-                                replay_last_time,
-                                now + int(REPLAY_SPLIT_PAUSE_MS / replay_speed)
+                            solver_mgr.replay_last_time = max(
+                                solver_mgr.replay_last_time,
+                                now + int(REPLAY_SPLIT_PAUSE_MS / solver_mgr.replay_speed)
                             )
                         elif was_split and not is_split:
-                            # Hai cube vừa kề cạnh và tự ghép (Merge) thành khối 1x1x2!
-                            replay_last_time = max(
-                                replay_last_time,
-                                now + int(REPLAY_MERGE_PAUSE_MS / replay_speed)
+                            solver_mgr.replay_last_time = max(
+                                solver_mgr.replay_last_time,
+                                now + int(REPLAY_MERGE_PAUSE_MS / solver_mgr.replay_speed)
                             )
 
                     if game.is_goal(state):
-                        falling_goal = True
-                        fall_start_time = pygame.time.get_ticks()
-                        fall_r = float(state.r)
-                        fall_c = float(state.c)
-                        fall_orient = state.orient
-                        buffered_action = None
-                        is_replaying = False
-                    elif buffered_action is not None:
-                        b_act = buffered_action
-                        buffered_action = None
-                        ns, anim_is_void = _step(state, b_act)
+                        anim.start_fall_goal(state, now)
+                        solver_mgr.stop_replay()
+                    elif anim.buffered_action is not None:
+                        b_act = anim.buffered_action
+                        anim.buffered_action = None
+                        ns, is_void = _step(game, state, b_act)
                         if ns is not None:
-                            animating = True
-                            if state.split is not None:
-                                anim_is_split = True
-                                anim_start_r, anim_start_c = state.split[0]
-                                anim_start_orient = STAND
-                                anim_split_tuple = state.split
-                            else:
-                                anim_is_split = False
-                                anim_start_r = state.r
-                                anim_start_c = state.c
-                                anim_start_orient = state.orient
-                                anim_split_tuple = None
-                            anim_action = b_act
-                            anim_next_state = ns
-                            anim_start_time = pygame.time.get_ticks()
+                            anim.start_roll(state, b_act, ns, is_void, now)
             else:
-                anim_progress = _ease(raw_t)
+                anim.anim_progress = ease_roll(raw_t)
 
-        # Fall Progression
-        fall_tuple = None
-        if falling_goal:
-            now = pygame.time.get_ticks()
-            gt = (now - fall_start_time) / FALL_GOAL_DURATION_MS
-            if gt >= 1.0:
-                falling_goal = False
-                won = True
-            else:
-                alpha = int(255 * max(0.0, 1.0 - gt))
-                fall_tuple = ('goal', fall_r, fall_c, fall_orient, alpha)
+        # Tiến trình rơi
+        fall_tuple, goal_event, void_event = anim.get_fall_tuple(now)
+        if goal_event:
+            won = True
+        elif void_event:
+            lost = True
 
-        elif falling_void:
-            now = pygame.time.get_ticks()
-            elapsed_ms = now - fall_start_time
-            t = elapsed_ms / 1000.0
-            if elapsed_ms >= FALL_VOID_DURATION_MS:
-                falling_void = False
-                lost = True
-            else:
-                if fall_is_split and fall_split_tuple is not None:
-                    fall_tuple = ('void_split', anim_start_r, anim_start_c,
-                                  anim_action, t, fall_split_tuple)
-                else:
-                    fall_tuple = ('void', anim_start_r, anim_start_c,
-                                  anim_start_orient, anim_action, t)
-
-        # 1. Draw Sky and Isometric Scene (Centered)
+        # Vẽ khung cảnh
         current_theme = get_theme(level.name)
         draw_sky_with_clouds(screen, *WINDOW_SIZE, theme=current_theme)
-        if spawning:
+
+        sc_kw = dict(bridge_mask=state.bridges, theme=current_theme)
+        if anim.spawning:
             draw_scene(screen, level, None, tw, th, offset, skew,
-                       spawn_state=(spawn_r, spawn_c, spawn_orient, z_spawn),
-                       bridge_mask=state.bridges,
-                       theme=current_theme)
-        elif animating:
-            if anim_is_split and anim_split_tuple is not None:
-                anim_tuple = ('split', anim_start_r, anim_start_c, anim_action,
-                              anim_progress, anim_split_tuple)
-            else:
-                anim_tuple = (anim_start_r, anim_start_c, anim_start_orient,
-                              anim_action, anim_progress)
-            draw_scene(screen, level, None, tw, th, offset, skew,
-                       anim_state=anim_tuple, bridge_mask=state.bridges,
-                       theme=current_theme)
-        elif falling_goal or falling_void:
-            draw_scene(screen, level, None, tw, th, offset, skew,
-                       fall_state=fall_tuple, bridge_mask=state.bridges,
-                       theme=current_theme)
+                       spawn_state=(state.r, state.c, state.orient, anim.z_spawn), **sc_kw)
+        elif anim.animating:
+            draw_scene(screen, level, None, tw, th, offset, skew, anim_state=anim.get_anim_tuple(), **sc_kw)
+        elif anim.falling_goal or anim.falling_void:
+            draw_scene(screen, level, None, tw, th, offset, skew, fall_state=fall_tuple, **sc_kw)
         elif not lost:
-            draw_scene(screen, level, state, tw, th, offset, skew,
-                       bridge_mask=state.bridges,
-                       theme=current_theme)
+            draw_scene(screen, level, state, tw, th, offset, skew, **sc_kw)
 
-        # 2. Top-left Status Pills (LEVEL & MOVES)
-        lvl_lbl = font_hud_lbl.render('LEVEL', True, (71, 85, 105))
-        lvl_val = font_hud_val.render(f'{level.name}', True, (15, 23, 42))
-
+        # Vẽ giao diện và HUD
         is_lvl_hover = (level_pill_rect.collidepoint(mouse_pos)
                         and not level_modal.is_open and not help_modal.is_open)
-        lvl_bg = (254, 240, 138) if is_lvl_hover else (255, 255, 255)
-        lvl_border = (15, 23, 42) if is_lvl_hover else (30, 41, 59)
+        level_pill_rect = draw_hud_status(screen, level.name, move_count, is_lvl_hover,
+                                          font_hud_lbl, font_hud_val)
 
-        w_lvl = _draw_hud_pill(screen, 24, 20, lvl_lbl, lvl_val,
-                               bg_col=lvl_bg, border_col=lvl_border)
-        level_pill_rect = pygame.Rect(24, 20, w_lvl, 38)
+        for b in (btn_home, btn_help, btn_restart, btn_new_game):
+            b.draw(screen, mouse_pos)
 
-        mov_lbl = font_hud_lbl.render('MOVES', True, (71, 85, 105))
-        mov_val = font_hud_val.render(f'{move_count}', True, (217, 119, 6))
-        _draw_hud_pill(screen, 24 + w_lvl + 12, 20, mov_lbl, mov_val)
+        draw_dock_bar(screen, mouse_pos,
+                      solver_mgr.is_solving, solver_mgr.solving_name,
+                      solver_mgr.last_solver_name, solver_mgr.last_result,
+                      solver_mgr.is_replaying, solver_mgr.replay_speed,
+                      btn_bfs, btn_dfs, btn_ucs, btn_astar,
+                      btn_action, btn_speed,
+                      stats_box_x, stats_box_w,
+                      font_dock_b, font_dock_sm)
 
-        # 3. Top-right Header Buttons (?, Restart, New Game)
-        btn_help.draw(screen, mouse_pos)
-        btn_restart.draw(screen, mouse_pos)
-        btn_new_game.draw(screen, mouse_pos)
-
-        # 4. Bottom AI Solver Dock Bar (Centered)
-        draw_aa_round_rect(screen, (DOCK_X, DOCK_Y, DOCK_W, DOCK_H),
-                           (255, 255, 255), border_radius=14,
-                           border_color=(30, 41, 59), border_width=2,
-                           shadow_offset=3)
-
-        # Solver buttons
-        solver_btns = [(btn_bfs, 'BFS'), (btn_dfs, 'DFS'), (btn_ucs, 'UCS'), (btn_astar, 'A*')]
-        for btn, s_name in solver_btns:
-            btn.enabled = not is_solving
-            if is_solving and solving_name == s_name:
-                btn.bg_color = (59, 130, 246)
-                btn.border_color = (30, 41, 59)
-                btn.text_color = (255, 255, 255)
-            else:
-                btn.bg_color = (248, 250, 252)
-                btn.border_color = (30, 41, 59)
-                btn.text_color = (30, 41, 59)
-            btn.draw(screen, mouse_pos)
-
-        # Replay / Stop Action Button
-        if is_replaying:
-            btn_action.text = 'Stop Replay'
-            btn_action.enabled = True
-            btn_action.bg_color = (254, 202, 202)
-            btn_action.hover_color = (252, 165, 165)
-            btn_action.border_color = (30, 41, 59)
-            btn_action.border_color_hover = (15, 23, 42)
-            btn_action.text_color = (153, 27, 27)
-            btn_action.text_color_hover = (127, 29, 29)
-        else:
-            btn_action.text = 'Replay Solution'
-            can_replay = bool(last_result and last_result.solved
-                              and last_result.path and not is_solving)
-            btn_action.enabled = can_replay
-            btn_action.bg_color = (187, 247, 208)
-            btn_action.hover_color = (134, 239, 172)
-            btn_action.border_color = (30, 41, 59)
-            btn_action.border_color_hover = (15, 23, 42)
-            btn_action.text_color = (20, 83, 45)
-            btn_action.text_color_hover = (15, 23, 42)
-        btn_action.draw(screen, mouse_pos)
-
-        # Speed Button (0.5x, 1.0x, 2.0x)
-        if replay_speed == 0.5:
-            btn_speed.bg_color = (254, 243, 199)
-            btn_speed.text_color = (180, 83, 9)
-        elif replay_speed == 2.0:
-            btn_speed.bg_color = (224, 231, 255)
-            btn_speed.text_color = (67, 56, 202)
-        else:
-            btn_speed.bg_color = (248, 250, 252)
-            btn_speed.text_color = (30, 41, 59)
-        btn_speed.text = f"{replay_speed}x"
-        btn_speed.draw(screen, mouse_pos)
-
-        # Dock Stats Pill
-        _draw_dock_stats(screen, stats_box_x, DOCK_Y + 6, stats_box_w, 32,
-                         is_solving, solving_name, last_solver_name, last_result,
-                         font_dock_b, font_dock_sm)
-
-        # 5. Victory Banner (YOU WIN!)
         if won:
-            draw_aa_round_rect(screen, (b_px, b_py, banner_w, banner_h), (255, 255, 255),
-                               border_radius=16, border_color=(22, 163, 74), border_width=3,
-                               shadow_offset=5)
-            msg = font_title.render('YOU WIN!', True, (22, 163, 74))
-            sub = font_sub.render(f'Completed in {move_count} moves', True, (20, 83, 45))
-            screen.blit(msg, (b_px + (banner_w - msg.get_width()) // 2, b_py + 24))
-            screen.blit(sub, (b_px + (banner_w - sub.get_width()) // 2, b_py + 88))
-            btn_win_restart.draw(screen, mouse_pos)
-            btn_win_new_game.draw(screen, mouse_pos)
-
-        # 6. Defeat Banner (GAME OVER)
+            draw_win_banner(screen, mouse_pos, b_px, b_py, banner_w, banner_h,
+                            move_count, font_title, font_sub,
+                            btn_win_restart, btn_win_new_game, btn_win_next)
         if lost:
-            draw_aa_round_rect(screen, (b_px, b_py, banner_w, banner_h), (255, 255, 255),
-                               border_radius=16, border_color=(220, 38, 38), border_width=3,
-                               shadow_offset=5)
-            msg = font_title.render('GAME OVER', True, (220, 38, 38))
-            sub = font_sub.render(f'You fell into the void ({move_count} moves)',
-                                  True, (51, 65, 85))
-            screen.blit(msg, (b_px + (banner_w - msg.get_width()) // 2, b_py + 24))
-            screen.blit(sub, (b_px + (banner_w - sub.get_width()) // 2, b_py + 88))
-            btn_loss_restart.draw(screen, mouse_pos)
-            btn_loss_new_game.draw(screen, mouse_pos)
+            draw_loss_banner(screen, mouse_pos, b_px, b_py, banner_w, banner_h,
+                             move_count, font_title, font_sub,
+                             btn_loss_restart, btn_loss_new_game)
 
-        # 7. Modals
         if level_modal.is_open:
             level_modal.draw(screen, mouse_pos)
-
         if help_modal.is_open:
             help_modal.draw(screen, mouse_pos)
 
+        fader.update(now)
+        fader.draw(screen, now)
         pygame.display.flip()
         clock.tick(FPS)

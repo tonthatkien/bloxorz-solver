@@ -1,4 +1,4 @@
-"""Advanced terrain and switch markers in the board's existing oblique projection."""
+"""Vẽ các ô địa hình đặc biệt (dễ vỡ, cầu nối) và các nút công tắc trên sàn Bloxorz."""
 from dataclasses import replace
 from functools import lru_cache
 from math import cos, pi, sin
@@ -24,9 +24,7 @@ DISC_SEGMENTS = 24
 
 
 def terrain_view(level: Level, bridge_mask: int) -> Level:
-    """Hide closed bridges for both drawing and neighboring cliff-edge geometry.
-
-    This is a display-only copy. The original Level and runtime State remain unchanged.
+    """Ẩn các cầu đang đóng khi vẽ địa hình và dựng hình học vách đá lân cận.
     """
     closed = [bridge.pos for bridge in level.bridges.values()
               if not bridge_mask & (1 << bridge.id)]
@@ -40,7 +38,7 @@ def terrain_view(level: Level, bridge_mask: int) -> Level:
 
 def _point(x: int, y: int, tw: int, th: int, skew: int,
            u: float, v: float) -> tuple[int, int]:
-    # Interpolate along the two edges of render_board._tile_quad.
+    # Nội suy tọa độ theo hai cạnh của tứ giác ô sàn (_tile_quad).
     tl, tr, _, bl = _tile_quad(x, y, tw, th, skew)
     return (round(tl[0] + u * (tr[0] - tl[0]) + v * (bl[0] - tl[0])),
             round(tl[1] + u * (tr[1] - tl[1]) + v * (bl[1] - tl[1])))
@@ -49,13 +47,13 @@ def _point(x: int, y: int, tw: int, th: int, skew: int,
 @lru_cache(maxsize=128)
 def _stroke_image(color: tuple[int, int, int], points: tuple[tuple[int, int], ...],
                   width: int) -> pygame.Surface:
-    # Cache only local geometry so moving a board does not rerasterize its details.
+    # Chỉ lưu cache hình học cục bộ để khi di chuyển bàn cờ không cần rasterize lại.
     padding = width + 2
     size = (max(x for x, _ in points) + 2 * padding + 1,
             max(y for _, y in points) + 2 * padding + 1)
     scale = DETAIL_AA_SCALE
     image = pygame.Surface((size[0] * scale, size[1] * scale), pygame.SRCALPHA)
-    # Keep RGB constant under transparent pixels to avoid dark downsampling fringes.
+    # Giữ nguyên giá trị RGB cho các pixel trong suốt để tránh viền đen khi downsampling.
     image.fill((*color, 0))
     scaled = [((x + padding) * scale, (y + padding) * scale) for x, y in points]
     pygame.draw.lines(image, color, False, scaled, width * scale)
@@ -74,7 +72,7 @@ def _smooth_lines(surface: pygame.Surface, color: tuple[int, int, int],
 
 def draw_fragile_tile(surface: pygame.Surface, level: Level, r: int, c: int,
                       x: int, y: int, tw: int, th: int, skew: int) -> None:
-    """Draw orange fragile terrain with a crack below any block drawn afterward."""
+    """Vẽ ô sàn đất cam dễ vỡ kèm vết nứt bên dưới khối gạch."""
     _draw_floor_tile(surface, level, r, c, x, y, tw, th, skew)
     _poly_aa(surface, FRAGILE_TOP, _tile_quad(x, y, tw, th, skew), FRAGILE_EDGE)
     crack = [_point(x, y, tw, th, skew, u, v) for u, v in
@@ -84,12 +82,11 @@ def draw_fragile_tile(surface: pygame.Surface, level: Level, r: int, c: int,
 
 def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
                                  tw: int, th: int, skew: int, vt: float) -> None:
-    """Vẽ ô đất dễ vỡ nứt toác thành các tảng đất 3D dày cộp và vụn đất sụp rơi xuống vực."""
+    """Vẽ ô đất dễ vỡ nứt thành các tảng đất 3D và vụn đất sụp rơi xuống vực."""
     if vt > 0.88:
         return
 
-    # 5 Tảng đất 3D dày cộp (chunky earth blocks) ghép kín khít ô sàn ban đầu
-    # Mỗi tảng là một khối đất dày 16px với các vách cắt đất màu nâu sẫm
+    # 5 Tảng đất 3D (chunky earth blocks) ghép kín khít ô sàn ban đầu
     chunks_def = [
         # (uv_polygon, drift_x, drift_y, rot_speed, is_center)
         ([(0.0, 0.0), (0.55, 0.0), (0.48, 0.38), (0.0, 0.45)],
@@ -115,7 +112,7 @@ def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
     soil_l_col = (*SOIL_LEFT, alpha) if alpha < 250 else SOIL_LEFT
     soil_d_col = (*SOIL_DARK, alpha) if alpha < 250 else SOIL_DARK
 
-    # Độ dày tầng đất thực tế (16px như sàn game, thu nhẹ khi rơi sâu)
+    # Độ dày tầng đất thực tế
     soil_depth = max(4, int(16 * (1.0 - vt * 0.5)))
 
     rendered_chunks = []
@@ -167,7 +164,7 @@ def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
         # 2. Vẽ mặt trên thảm đất nứt (Fragile clay top surface)
         _poly_aa(shard_surf, top_col, rot_top, edge_color=edge_col)
 
-    # 3. Các cục đất vụn dạng khối 3D (Chunky 3D soil clods) lả tả rơi theo trọng lực
+    # 3. Các cục đất vụn dạng khối 3D (Chunky 3D soil clods) rơi theo trọng lực
     soil_crumbs = (
         ( 0.35, -0.28,  6.0, -4.0, 5, 4),
         (-0.28, -0.32, -5.0, -3.0, 4, 3),
@@ -193,7 +190,7 @@ def draw_shattering_fragile_tile(surface: pygame.Surface, x: int, y: int,
 def draw_bridge_tile(surface: pygame.Surface, level: Level, r: int, c: int,
                      x: int, y: int, tw: int, th: int, skew: int,
                      opened: bool = True) -> None:
-    """Draw a plank surface for an open bridge; a closed bridge contributes no floor."""
+    """Vẽ bề mặt ván gỗ cho cầu đang mở; cầu đang đóng sẽ không tạo mặt sàn."""
     if not opened:
         return
     _draw_floor_tile(surface, level, r, c, x, y, tw, th, skew)
@@ -217,7 +214,7 @@ def _disc_image(color: tuple[int, int, int], tw: int, th: int,
                      0.5 + 0.34 * sin(i * 2 * pi / DISC_SEGMENTS))
               for i in range(DISC_SEGMENTS)]
     _poly_aa(image, color, points, MARKER_EDGE)
-    # Premultiply mixed fill/edge colors before filtering transparent boundaries.
+    # Nhân trước kênh alpha (premultiply) để làm mượt biên trong suốt khi downscale.
     return pygame.transform.smoothscale(image.premul_alpha(), size)
 
 
@@ -229,13 +226,13 @@ def _disc(surface: pygame.Surface, color: tuple[int, int, int],
 
 def draw_soft_switch(surface: pygame.Surface, x: int, y: int,
                      tw: int, th: int, skew: int) -> None:
-    """Draw the soft switch as a cyan rounded pressure plate."""
+    """Vẽ công tắc nhẹ (soft switch) dạng đĩa tròn màu lục lam."""
     _disc(surface, SOFT_TOP, x, y, tw, th, skew)
 
 
 def draw_heavy_switch(surface: pygame.Surface, x: int, y: int,
                       tw: int, th: int, skew: int) -> None:
-    """Draw a contrasting X for the heavy switch without evaluating activation."""
+    """Vẽ công tắc nặng (heavy switch) có dấu chữ X màu vàng."""
     _disc(surface, MARKER_EDGE, x, y, tw, th, skew)
     for start, end in (((0.31, 0.27), (0.69, 0.73)),
                        ((0.31, 0.73), (0.69, 0.27))):
@@ -246,7 +243,7 @@ def draw_heavy_switch(surface: pygame.Surface, x: int, y: int,
 
 def draw_split_switch(surface: pygame.Surface, x: int, y: int,
                       tw: int, th: int, skew: int) -> None:
-    """Draw paired purple brackets for the split switch; no cube logic lives here."""
+    """Vẽ công tắc phân tách (split switch) với hai dấu ngoặc màu tím đối xứng."""
     _disc(surface, MARKER_EDGE, x, y, tw, th, skew)
     for mirror in (False, True):
         points = [_point(x, y, tw, th, skew, 1 - u if mirror else u, v)
@@ -257,7 +254,7 @@ def draw_split_switch(surface: pygame.Surface, x: int, y: int,
 
 def draw_switch(surface: pygame.Surface, kind: str, x: int, y: int,
                 tw: int, th: int, skew: int) -> None:
-    """Draw the marker belonging to a validated switch type."""
+    """Vẽ ký hiệu công tắc tương ứng theo loại (soft, heavy, split)."""
     drawers = {"soft": draw_soft_switch, "heavy": draw_heavy_switch,
                "split": draw_split_switch}
     drawers[kind](surface, x, y, tw, th, skew)

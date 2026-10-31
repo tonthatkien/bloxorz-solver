@@ -1,34 +1,21 @@
-"""Module vẽ khối lập phương đơn (1x1x1) khi ở trạng thái tách (Task D4).
+"""Module vẽ khối lập phương đơn (1x1x1) khi ở trạng thái tách.
 
 Quy ước:
 - Khi tách, state.split = ((r1, c1), (r2, c2)).
-- Phong cách 3 (Minimalist Pure): Thuần khiết như Bloxorz nguyên bản.
-- split[0]: Cube đang điều khiển (Active) -> Gỗ Vàng Sáng (Warm Golden Wood).
-- split[1]: Cube đứng yên (Inactive) -> Đá Xám Tro (Slate Stone) ngủ đông.
-- Nhận diện 100% bằng chất liệu trực quan, không có mũi tên/icon lơ lửng che tầm nhìn.
+- split[0]: Cube đang điều khiển (Active) -> Màu gỗ nâu
+- split[1]: Cube đứng yên (Inactive) -> Màu đá xám
 - Kích thước mỗi cube đơn là 1x1x1 (lx=1, ly=1, lz=1).
 """
 import math
 from typing import List, Optional, Tuple
 import pygame
-import pygame.gfxdraw
 
 from gui.render_board import _poly_aa
 
 CUBE_HEIGHT: int = 60
 
-# Màu sắc chỉ thị Kim Cương 3D (Indicator)
-INDICATOR_LIGHT: Tuple[int, int, int] = (255, 255, 255)       # Trắng ngọc (Pure White)
-INDICATOR_SHADOW: Tuple[int, int, int] = (203, 213, 225)      # Bạc tro (Silver Slate 300)
-INDICATOR_EDGE: Tuple[int, int, int] = (15, 23, 42)           # Slate 900 viền sắc nét
-INDICATOR_RIDGE: Tuple[int, int, int] = (148, 163, 184)       # Sống giữa Slate 400
-
-# Tương thích ngược biến cũ nếu có module tham chiếu
-INDICATOR_FILL: Tuple[int, int, int] = INDICATOR_LIGHT
-
-
 def _wood_face_color(normal: Tuple[float, float, float]) -> Tuple[int, int, int]:
-    """Tính màu mặt cho cube gỗ vàng sáng (Active) theo hướng pháp tuyến."""
+    """Tính màu mặt cho cube gỗ nâu (Active) theo hướng pháp tuyến."""
     nx, ny, nz = normal
     r, g, b, total = 0.0, 0.0, 0.0, 0.0
 
@@ -60,9 +47,8 @@ def _wood_face_color(normal: Tuple[float, float, float]) -> Tuple[int, int, int]
 
     return (int(round(r)), int(round(g)), int(round(b)))
 
-
 def _stone_face_color(normal: Tuple[float, float, float]) -> Tuple[int, int, int]:
-    """Tính màu mặt cho cube đá xám hóa cứng (Inactive) theo hướng pháp tuyến."""
+    """Tính màu mặt cho cube đá xám (Inactive) theo hướng pháp tuyến."""
     nx, ny, nz = normal
     r, g, b, total = 0.0, 0.0, 0.0, 0.0
 
@@ -94,25 +80,11 @@ def _stone_face_color(normal: Tuple[float, float, float]) -> Tuple[int, int, int
 
     return (int(round(r)), int(round(g)), int(round(b)))
 
-
 def _proj(p: Tuple[float, float, float], tw: int, th: int,
           off: Tuple[int, int], skew: int, cube_h: int = CUBE_HEIGHT) -> Tuple[float, float]:
     """Chiếu tọa độ không gian 3D (x, y, z) sang tọa độ màn hình isometric 2D."""
     return (off[0] + p[0] * tw + p[1] * skew,
             off[1] + p[1] * th - p[2] * cube_h)
-
-
-def draw_active_indicator(surface: pygame.Surface,
-                          r: int, c: int,
-                          tw: int, th: int,
-                          off: Tuple[int, int], skew: int,
-                          now_ms: int,
-                          fill_color: Optional[Tuple[int, int, int]] = None,
-                          edge_color: Optional[Tuple[int, int, int]] = None,
-                          shadow_color: Optional[Tuple[int, int, int]] = None) -> None:
-    """Theo Phong cách 3 (Minimalist Pure): Không vẽ bất kỳ icon lơ lửng nào."""
-    pass
-
 
 def _draw_cube_geometry(surface: pygame.Surface,
                         verts: List[Tuple[float, float, float]],
@@ -154,7 +126,6 @@ def _draw_cube_geometry(surface: pygame.Surface,
         int_pts = [(int(round(p[0])), int(round(p[1]))) for p in pts]
         _poly_aa(surface, col, int_pts)
 
-
 def draw_single_cube(surface: pygame.Surface,
                      r: int, c: int,
                      is_active: bool,
@@ -188,7 +159,6 @@ def draw_single_cube(surface: pygame.Surface,
     ]
 
     _draw_cube_geometry(surface, verts, lambda n: n, is_active, tw, th, off, skew)
-
 
 def draw_animated_single_cube(surface: pygame.Surface,
                               r: int, c: int,
@@ -252,19 +222,14 @@ def draw_animated_single_cube(surface: pygame.Surface,
 
     _draw_cube_geometry(surface, rot_verts, rot_v, is_active, tw, th, off, skew)
 
-
 def draw_split_cubes(surface: pygame.Surface,
                      split: Tuple[Tuple[int, int], Tuple[int, int]],
                      tw: int, th: int,
                      off: Tuple[int, int], skew: int,
                      anim_info: Optional[Tuple[int, int, str, float]] = None,
-                     merge_progress: Optional[float] = None,
-                     indicator_colors: Optional[
-                         Tuple[Tuple[int, int, int], Tuple[int, int, int]]
-                     ] = None) -> None:
+                     merge_progress: Optional[float] = None) -> None:
     """Vẽ cả 2 cube (active & inactive) với thứ tự chiều sâu và chỉ thị trực quan."""
     c_active, c_inactive = split
-    now_ms = pygame.time.get_ticks()
 
     # Sắp xếp vẽ theo chiều sâu Isometric (r nhỏ vẽ trước, r lớn vẽ sau)
     # Nếu anim_info có giá trị: cube active đang lăn

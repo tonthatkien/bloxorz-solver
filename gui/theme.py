@@ -1,15 +1,9 @@
 """
 gui/theme.py – Định nghĩa theme giao diện theo nhóm màn chơi.
-
-Theme được suy ra tự động từ tên level (level.name):
-  g1_* → GARDEN   (Khu vườn trên mây - dễ)
-  g2_* → SUNSET   (Hoàng hôn - vừa)
-  g3_* → DUSK     (Chạng vạng / đêm - khó)
-  g4_* → STORM    (Bão - rất khó)
-  mặc định → GARDEN
 """
 from __future__ import annotations
 from dataclasses import dataclass
+import re
 from typing import Optional, Tuple
 
 Color = Tuple[int, int, int]
@@ -55,7 +49,7 @@ class Theme:
     show_garland: bool
 
 
-# ── Định nghĩa 4 theme ────────────────────────────────────────────────────────
+# Định nghĩa 4 theme
 
 GARDEN = Theme(
     name="garden",
@@ -141,18 +135,40 @@ STORM = Theme(
     show_garland=False,
 )
 
-# ── Mapping tên level → theme ─────────────────────────────────────────────────
+# Chu kỳ 4 theme xoay vòng
+THEME_CYCLE = [GARDEN, SUNSET, DUSK, STORM]
 
-_PREFIX_MAP = {
-    "g1": GARDEN,
-    "g2": SUNSET,
-    "g3": DUSK,
-    "g4": STORM,
-    "t2": SUNSET,   # t2 levels
+_EXPLICIT_MAP = {
+    "t2": SUNSET,
 }
 
 
 def get_theme(level_name: str) -> Theme:
-    """Trả về Theme phù hợp dựa vào tên level (vd. 'g1_basic_01')."""
-    prefix = level_name[:2].lower() if len(level_name) >= 2 else ""
-    return _PREFIX_MAP.get(prefix, GARDEN)
+    """Trả về Theme phù hợp dựa vào tên level (vd. 'g1_basic_01', 'g5_extreme_01').
+
+    Hỗ trợ chu kỳ xoay vòng tự động (Loop):
+      g1, g5, g9...   -> GARDEN  (Sáng)
+      g2, g6, g10...  -> SUNSET  (Hoàng hôn)
+      g3, g7, g11...  -> DUSK    (Đêm)
+      g4, g8, g12...  -> STORM   (Giông bão)
+    """
+    lower = level_name.lower()
+
+    # 1. Khớp theo tên theme tường minh nếu xuất hiện trong tên
+    for th in THEME_CYCLE:
+        if th.name in lower:
+            return th
+
+    # 2. Khớp các tiền tố đặc biệt đã định nghĩa (ví dụ t2)
+    prefix_2 = lower[:2] if len(lower) >= 2 else ""
+    if prefix_2 in _EXPLICIT_MAP:
+        return _EXPLICIT_MAP[prefix_2]
+
+    # 3. Chu kỳ tự động theo số hiệu nhóm màn (g1..g4, g5..g8, g9...)
+    match = re.search(r'[gt](\d+)', lower)
+    if match:
+        group_num = int(match.group(1))
+        if group_num > 0:
+            return THEME_CYCLE[(group_num - 1) % len(THEME_CYCLE)]
+
+    return GARDEN

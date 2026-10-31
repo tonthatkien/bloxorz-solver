@@ -45,7 +45,6 @@ def _poly_aa(surface: pygame.Surface, color, points: List[Tuple[int, int]], edge
     pygame.gfxdraw.aapolygon(surface, points, ec)
 
 
-# Tham khảo phép chiếu Oblique Cavalier: https://en.wikipedia.org/wiki/Oblique_projection
 def grid_to_iso(r: int, c: int, tw: int, th: int,
                 off: Tuple[int, int], skew: int) -> Tuple[int, int]:
     return off[0] + c * tw + r * skew, off[1] + r * th
@@ -86,7 +85,7 @@ def _tile_quad(x: int, y: int, tw: int, th: int, skew: int) -> List[Tuple[int, i
 
 def _draw_hanging_vines(surface: pygame.Surface, p_start: Tuple[int, int], p_end: Tuple[int, int],
                         depth: int, seed: int) -> None:
-    """Vẽ dây leo xanh tự nhiên buông rủ từ mép vách đất xuống không trung."""
+    """Vẽ dây leo."""
     if (seed % 100) >= 50:
         return
 
@@ -97,11 +96,11 @@ def _draw_hanging_vines(surface: pygame.Surface, p_start: Tuple[int, int], p_end
         rx = int(p_start[0] + t * (p_end[0] - p_start[0]))
         ry = int(p_start[1] + t * (p_end[1] - p_start[1]))
 
-        # Chiều dài dây leo buông rủ xuống quá đáy vách đất
+        # Chiều dài dây leo
         hang_extra = 4 + ((sub_seed >> 4) % 12)
         total_len = depth + hang_extra
 
-        # Các điểm uốn lượn tự nhiên
+        # Các điểm uốn
         wiggle = 2 if (sub_seed % 2 == 0) else -2
         pts = [
             (rx, ry),
@@ -121,7 +120,7 @@ def _draw_hanging_vines(surface: pygame.Surface, p_start: Tuple[int, int], p_end
 
 def _draw_tile_vegetation(surface: pygame.Surface, quad: List[Tuple[int, int]],
                           tw: int, th: int, skew: int, seed: int) -> None:
-    """Vẽ hoa dại hoặc khóm cỏ non trên mặt thảm cỏ theo phân bố tự nhiên."""
+    """Vẽ hoa dại hoặc khóm cỏ non trên mặt thảm cỏ."""
     h_val = seed % 100
     if h_val >= 46:
         return
@@ -162,7 +161,7 @@ def _draw_floor_tile(surface: pygame.Surface, level: Level, r: int, c: int,
                      x: int, y: int, tw: int, th: int, skew: int,
                      *, theme=None) -> None:
     quad = _tile_quad(x, y, tw, th, skew)
-    tl, tr, br, bl = quad
+    tl, _, br, bl = quad
     d = TILE_DEPTH
 
     # Màu sắc theo theme nếu có
@@ -258,7 +257,7 @@ def _draw_goal_garland(surface: pygame.Surface, quad: List[Tuple[int, int]],
     palette = [
         ((255, 138, 162), (255, 230,  90)),   # Hoa hồng đào
         ((255, 255, 245), (255, 210,  35)),   # Hoa cúc trắng
-        ((255, 222,  55), (238, 135,  30)),   # Hoa vàng rực rỡ
+        ((255, 222,  55), (238, 135,  30)),   # Hoa vàng
         ((208, 145, 240), (255, 245, 140)),   # Hoa tím oải hương
     ]
 
@@ -292,7 +291,7 @@ def _draw_goal_garland(surface: pygame.Surface, quad: List[Tuple[int, int]],
 def _draw_goal_tile(surface: pygame.Surface, level: Level, r: int, c: int,
                     x: int, y: int, tw: int, th: int, skew: int,
                     *, theme=None) -> None:
-    """Vẽ hố đích kèm vòng hoa trang trí (không có hào quang)."""
+    """Vẽ hố đích kèm vòng hoa trang trí."""
     quad = _tile_quad(x, y, tw, th, skew)
     tl, tr, br, bl = quad
     d = TILE_DEPTH

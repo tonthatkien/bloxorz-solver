@@ -50,8 +50,7 @@ def draw_animated_block(surface: pygame.Surface,
                         pivot_override: Optional[Tuple[float, float, str, float]] = None) -> None:
     # extra_angle: góc lật thêm (rad) sau khi đã lăn 90 độ; drop: độ dời (x, y, z) của cả khối;
     # shadow=False: bỏ bóng tiếp xúc. pivot_override=(px, py, axis, angle): xoay quanh trục tùy ý
-    # (px là cột, py là hàng, axis 'X' hoặc 'Y') thay vì mép khối. Dùng cho hiệu ứng rơi sàn,
-    # mặc định giữ nguyên hành vi cũ.
+    # (px là cột, py là hàng, axis 'X' hoặc 'Y') thay vì mép khối. Dùng cho hiệu ứng rơi sàn.
     cube_h = 60
 
     lx = 1 if orient != HORIZ else 2
@@ -136,11 +135,10 @@ def draw_animated_block(surface: pygame.Surface,
         pygame.draw.polygon(shadow_surf, (20, 35, 15, s_alpha), bot_shadow)
         surface.blit(shadow_surf, (0, 0))
 
-    # Loại bỏ mặt sau và sắp xếp theo chiều sâu
     v_cam = (-skew / tw, 1.0, th / cube_h)
 
     visible_faces = []
-    for fname, v_indices, n0 in faces:
+    for _, v_indices, n0 in faces:
         n = rot_v(n0)
         v_dot = n[0] * v_cam[0] + n[1] * v_cam[1] + n[2] * v_cam[2]
         if v_dot > 1e-4:
@@ -151,10 +149,10 @@ def draw_animated_block(surface: pygame.Surface,
 
             col = _face_color(n)
             pts = [proj_verts[idx] for idx in v_indices]
-            visible_faces.append((depth, fname, pts, col))
+            visible_faces.append((depth, pts, col))
 
     visible_faces.sort(key=lambda item: item[0])
-    for _, fname, pts, col in visible_faces:
+    for _, pts, col in visible_faces:
         int_pts = [(int(round(p[0])), int(round(p[1]))) for p in pts]
         _poly_aa(surface, col, int_pts)
 
@@ -211,7 +209,7 @@ def draw_spawn_block(surface: pygame.Surface,
     v_cam = (-skew / tw, 1.0, th / cube_h)
 
     visible_faces = []
-    for fname, v_indices, n0 in faces:
+    for _, v_indices, n0 in faces:
         v_dot = n0[0] * v_cam[0] + n0[1] * v_cam[1] + n0[2] * v_cam[2]
         if v_dot > 1e-4:
             center_x = sum(verts[idx][0] for idx in v_indices) / 4.0
