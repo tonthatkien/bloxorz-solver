@@ -22,26 +22,38 @@ Không sửa mã/đổi tên cột F3, không chạy lại solver khi vẽ.
 
 | Tên | Nội dung |
 |---|---|
-| `solvers_unit` | Time, memory, expanded nodes, path length của từng solver/từng màn |
-| `solvers_weighted` | Bốn chỉ số trên và tổng path cost; ít bước không đồng nghĩa chi phí thấp |
+| `solvers_unit`, `solvers_weighted` | Cột nhóm G1–G4: trung bình nhân node/time/memory/cost ratio so với UCS; trục log, mốc 1 |
+| `appendix_solvers_unit`, `appendix_solvers_weighted` | Phụ lục: time/memory/nodes/length/cost tuyệt đối từng màn |
 | `heuristics_unit`, `heuristics_weighted` | Node/time/memory ratio so với A* h=0 và tightness |
 | `heuristics_groups` | Heatmap node/time ratio theo G1–G4, cùng thang màu |
-| `heuristics_quality` | Số màn ít node nhất (kể cả hòa), số màn có cost tối ưu |
-| `all_figures.pdf` | Toàn bộ hình trong một PDF nhiều trang |
-| `manifest.json` | SHA-256 ba đầu vào, số dòng, cách tổng hợp, phiên bản vẽ và nhãn màn |
+| `all_figures.pdf` | 5 hình chính, sau đó 2 phụ lục khi đủ cả hai chế độ và heuristic |
+| `manifest.json` | SHA-256 đầu vào, số dòng, quy tắc, nhãn màn và số liệu tối ưu heuristic |
 
 Mỗi tên hình có đuôi PNG/PDF theo `--formats`. Không commit CSV gốc hoặc file
-hình sinh tự động; thư mục output mặc định được Git ignore.
+hình sinh tự động; thư mục output mặc định được Git ignore. Bộ đầy đủ gồm 7 PNG,
+7 PDF riêng và PDF tổng hợp 7 trang. Sau khi vẽ thành công, công cụ xóa
+`heuristics_quality.png/pdf/svg` cũ trong output để tránh dùng nhầm hình đã bỏ.
 
 ## Quy tắc diễn giải
 
 - Không trộn `unit` với `weighted`. Thời gian đổi từ giây sang ms; memory của F3
   đã tính bằng bytes/1024 nên nhãn chính xác là KiB, không chia thêm lần nữa.
-- Các trục time/memory/nodes dùng log khi toàn bộ giá trị hiện hữu đều dương.
-  Path length/cost dùng trục tuyến tính, bắt đầu từ 0.
+- Hình solver chính: tính tỉ số trên từng màn với UCS cùng cost mode, rồi lấy
+  trung bình nhân theo nhóm. Mỗi chỉ số dùng tập màn giải được, có giá trị dương
+  chung cho mọi solver; nhãn `n` cho biết số màn dùng / tổng số màn trong nhóm.
+  Giữ lời giải chưa tối ưu của DFS/BFS, không loại chúng khỏi phép so sánh cost.
+  Không tính tỉ số giữa hai trung bình, không thay dữ liệu thiếu/0 bằng epsilon.
+  Cần có series UCS; UCS thiếu/thất bại ở một màn thì màn đó bị loại cho mọi solver.
+- Node/time/memory/cost ratio dùng trục log, mốc ngang 1. Ở unit, cost ratio cũng
+  là length ratio. Ở weighted, cost ratio dùng cost của UCS làm mốc tối ưu tham
+  chiếu; BFS không được giả định bằng 1 vì ít bước nhất không bảo đảm cost thấp nhất.
+- Phụ lục giữ đơn vị tuyệt đối: time/memory/nodes dùng log khi mọi giá trị dương;
+  length/cost dùng trục tuyến tính. Đường nối chỉ để tra cứu, không biểu thị xu
+  hướng giữa các màn độc lập; dùng hình cột nhóm để so sánh chính.
 - Tên như G1-02 là nhãn gọn; tên JSON đầy đủ được lưu trong manifest.
 - `solved=False`, giá trị thiếu hoặc timeout không trở thành lời giải 0 bước/0 cost.
-  Trên hình solver, dấu × ở chân trục biểu thị điều kiện thiếu hoặc chưa giải.
+  Trên phụ lục, dấu × ở chân trục biểu thị điều kiện thiếu hoặc chưa giải.
+  Trên cột nhóm, `N/A` là không đủ mẫu ghép cặp hợp lệ, không phải tỉ số bằng 0.
 - Heuristic ghép cặp trên cùng màn và cost mode với A* `zero`, không lấy runtime UCS
   ở `results.csv` làm mẫu số của phép đo heuristic chạy riêng.
 - Hiệu quả heuristic dùng tập màn giải tối ưu chung cho mọi heuristic; `n` trên hình
@@ -51,8 +63,11 @@ hình sinh tự động; thư mục output mặc định được Git ignore.
   cộng. Ratio <1 là thấp hơn mốc. Tightness gần 1 là sát hơn, không phải runtime.
 - Kiểm tra lại từng ratio, optimal flag và toàn bộ summary theo quy tắc F3;
   chấp nhận sai số làm tròn bốn chữ số thập phân. Summary cũ/sai bị từ chối trước khi vẽ.
-- `node_wins` tính cho mọi trường hợp hòa; tổng các heuristic có thể vượt số màn.
-  `optimal` là đối chiếu cost với zero trên bộ dữ liệu đã đo.
+- Bỏ hình `heuristics_quality` để tránh lặp node ratio và thanh tối ưu bằng nhau.
+  `manifest.json/heuristic_optimality` ghi riêng optimal/non_optimal/unconfirmed/total
+  cho từng heuristic, từng cost mode; số liệu là quan sát trên tập đã đo,
+  không phải chứng minh admissibility trên mọi trạng thái. Summary F3 vẫn được
+  kiểm tra đầy đủ, kể cả `node_wins` (hòa vẫn tính), không thay đổi schema F3.
 - CSV không chứa các lần đo riêng hoặc độ lệch chuẩn: không tự tạo error bar,
   confidence interval hoặc kết luận khác biệt thời gian có ý nghĩa thống kê.
 
