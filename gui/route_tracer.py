@@ -50,18 +50,20 @@ class RouteTracer:
         self.clear_data()
 
     def toggle(self, game: Game, result: Optional[SearchResult], now_ms: int,
-               current_state: Optional[State] = None) -> bool:
+               current_state: Optional[State] = None,
+               start_state: Optional[State] = None) -> bool:
         """Bật/tắt hiển thị đường đi (hỗ trợ pre-toggle khi chưa chạy bộ giải)."""
         if self.is_visible:
             self.hide()
             return False
         self.is_visible = True
         if result and result.solved and result.path:
-            self.load(game, result, now_ms, current_state=current_state)
+            self.load(game, result, now_ms, current_state=current_state, start_state=start_state)
         return True
 
     def load(self, game: Game, result: SearchResult, now_ms: int,
-             current_state: Optional[State] = None) -> None:
+             current_state: Optional[State] = None,
+             start_state: Optional[State] = None) -> None:
         """Nạp dữ liệu nghiệm và cây duyệt để bắt đầu diễn hoạt."""
         self.is_visible = True
         self.anim_start_time = now_ms
@@ -76,7 +78,7 @@ class RouteTracer:
                     seen.add(c)
                     self.expanded_order_cells.append(c)
 
-        st = game.initial_state()
+        st = start_state if start_state is not None else game.initial_state()
         self.path_states = [st]
         self.path_cells = set(cells(st))
         for act in result.path:

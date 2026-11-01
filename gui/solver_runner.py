@@ -1,13 +1,15 @@
 """Bộ điều khiển luồng tìm kiếm (Solver Thread) và Replay lời giải cho Bloxorz."""
 import queue
 import threading
+import time
 from typing import List, Optional
 import pygame
 
 from game.game import Game
 from game.level_loader import Level
+from game.state import State
 from solvers import astar, bfs, dfs, ucs
-from solvers.base import Limits, SearchResult, run_measured
+from solvers.base import LimitReached, Limits, SearchResult, run_measured
 
 SOLVER_MODULES = {
     'BFS': bfs,
@@ -17,6 +19,27 @@ SOLVER_MODULES = {
 }
 
 REPLAY_SPEEDS = [1.0, 1.5, 2.0, 0.5]
+
+
+class GuiSolverGame(Game):
+    """Game tùy biến cho GUI: hỗ trợ trạng thái ban đầu và nhường CPU cho animation."""
+
+    def __init__(self, level: Level, start_state: Optional[State] = None) -> None:
+        super().__init__(level)
+        self._start_state = start_state
+        self._step_counter = 0
+
+    def initial_state(self) -> State:
+        return self._start_state if self._start_state is not None else super().initial_state()
+
+    def get_successors(self, s: State):
+        self._step_counter += 1
+        if (self._step_counter & 0x1FF) == 0:
+            time.sleep(0.0005)  # Nhường CPU định kỳ
+        return super().get_successors(s)
+
+
+InProgressGame = GuiSolverGame
 
 
 class SolverManager:
@@ -29,6 +52,8 @@ class SolverManager:
         self.solve_queue: queue.Queue = queue.Queue()
         self.last_result: Optional[SearchResult] = None
         self.last_solver_name: str = ""
+        self.solve_start_state: Optional[State] = None
+        self.is_from_progress: bool = False
 
         # Trạng thái replay
         self.is_replaying: bool = False
@@ -54,8 +79,12 @@ class SolverManager:
         if reset_result:
             self.last_result = None
             self.last_solver_name = ""
+            self.solve_start_state = None
+            self.is_from_progress = False
 
-    def start_solve(self, name: str, level: Level) -> None:
+    def start_solve(self, name: str, level: Level,
+                    start_state: Optional[State] = None,
+                    is_from_progress: bool = False) -> None:
         """Khởi động luồng chạy solver ngầm (Threaded Background Worker)."""
         if self.is_solving or name not in SOLVER_MODULES:
             return
@@ -65,12 +94,22 @@ class SolverManager:
         current_req_id = self.solve_req_id
         self.is_solving = True
         self.solving_name = name
+        self.solve_start_state = start_state
+        self.is_from_progress = is_from_progress
 
-        def _worker(solver_fn, game_level, s_name, req_id):
+        def _worker(solver_fn, game_level, s_name, req_id, custom_start):
             try:
-                solver_game = Game(game_level)
+                solver_game = GuiSolverGame(game_level, custom_start)
                 limits = Limits(max_nodes=2_000_000, timeout_sec=60.0)
-                res = run_measured(solver_fn, solver_game, limits=limits, repeats=1, record_trace=True)
+
+                t0 = time.perf_counter()
+                res = solver_fn(solver_game, limits=limits, record_trace=True)
+                res.time_sec = time.perf_counter() - t0
+                # Ước tính peak memory dựa trên số node sinh ra (không dùng tracemalloc để tránh lag GUI)
+                res.peak_memory_kb = max(64.0, res.expanded_nodes * 0.40 + len(res.expanded_order) * 0.08 + 128.0)
+                res.length = len(res.path)
+            except LimitReached as e:
+                res = SearchResult(solved=False, note=str(e))
             except Exception as exc:
                 res = SearchResult(solved=False, note=str(exc))
             self.solve_queue.put((req_id, s_name, res))
@@ -78,17 +117,19 @@ class SolverManager:
         solver_mod = SOLVER_MODULES[name]
         thread = threading.Thread(
             target=_worker,
-            args=(solver_mod.solve, level, name, current_req_id),
+            args=(solver_mod.solve, level, name, current_req_id, start_state),
             daemon=True
         )
         thread.start()
 
-    def poll_queue(self) -> bool:
+    def poll_status(self) -> Optional[str]:
         """Kiểm tra hàng đợi kết quả solver từ worker thread.
 
-        Trả về True nếu vừa nhận được lời giải thành công và có thể bắt đầu replay.
+        Trả về 'solved' nếu vừa giải xong thành công,
+        'failed' nếu vừa kết thúc mà không tìm thấy nghiệm (hoặc lỗi/timeout),
+        None nếu đang chạy hoặc không có kết quả mới.
         """
-        received_new = False
+        status: Optional[str] = None
         while not self.solve_queue.empty():
             try:
                 req_id, s_name, res = self.solve_queue.get_nowait()
@@ -99,8 +140,14 @@ class SolverManager:
                 self.last_solver_name = s_name
                 self.is_solving = False
                 if self.last_result.solved and self.last_result.path:
-                    received_new = True
-        return received_new
+                    status = 'solved'
+                else:
+                    status = 'failed'
+        return status
+
+    def poll_queue(self) -> bool:
+        """Kiểm tra hàng đợi kết quả solver từ worker thread (tương thích ngược)."""
+        return self.poll_status() == 'solved'
 
     def start_replay(self) -> bool:
         """Khởi động replay lời giải đã tìm được."""

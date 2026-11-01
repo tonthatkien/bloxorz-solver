@@ -8,7 +8,7 @@ from solvers.base import SearchResult
 WINDOW_SIZE = (1280, 720)
 
 # Bottom Dock Geometry
-DOCK_W = 868
+DOCK_W = 950
 DOCK_H = 44
 DOCK_X = (WINDOW_SIZE[0] - DOCK_W) // 2
 DOCK_Y = WINDOW_SIZE[1] - DOCK_H - 18
@@ -57,22 +57,44 @@ def draw_dock_stats(surf: pygame.Surface, x: int, y: int, w: int, h: int,
                 time_str = f"{t_ms:.1f}ms" if t_ms < 1000.0 else f"{last_result.time_sec:.2f}s"
                 mem_kb = last_result.peak_memory_kb
                 mem_str = f"{mem_kb:.0f}KB" if mem_kb < 1024.0 else f"{mem_kb / 1024.0:.1f}MB"
-                nodes_str = f"{last_result.expanded_nodes:,} nodes"
-                len_str = f"{last_result.length} moves"
-                info_str = f"{time_str}   •   {mem_str}   •   {nodes_str}   •   {len_str}"
-                info_surf = font_bold.render(info_str, True, (15, 23, 42))
 
-                total_w = tag_surf.get_width() + 10 + info_surf.get_width()
-                cur_x = x + max(10, (w - total_w) // 2)
+                # Định dạng số node
+                nodes = last_result.expanded_nodes
+                if nodes >= 1_000_000:
+                    nodes_str = f"{nodes / 1_000_000:.2f}M nodes"
+                elif nodes >= 100_000:
+                    nodes_str = f"{nodes / 1_000:.0f}k nodes"
+                elif nodes >= 10_000:
+                    nodes_str = f"{nodes / 1_000:.1f}k nodes"
+                else:
+                    nodes_str = f"{nodes:,} nodes"
+
+                len_str = f"{last_result.length} moves"
+
+                info_str = f"{time_str} • {mem_str} • {nodes_str} • {len_str}"
+                render_font = font_bold
+                info_surf = render_font.render(info_str, True, (15, 23, 42))
+                total_w = tag_surf.get_width() + 8 + info_surf.get_width()
+
+                # Tự động chuyển font_sm nếu dữ liệu quá dài
+                if total_w > w - 16:
+                    render_font = font_sm
+                    info_surf = render_font.render(info_str, True, (15, 23, 42))
+                    total_w = tag_surf.get_width() + 8 + info_surf.get_width()
+
+                cur_x = x + max(8, (w - total_w) // 2)
                 surf.blit(tag_surf, (cur_x, y + (h - tag_surf.get_height()) // 2))
-                ix = cur_x + tag_surf.get_width() + 10
+                ix = cur_x + tag_surf.get_width() + 8
                 surf.blit(info_surf, (ix, y + (h - info_surf.get_height()) // 2))
             else:
                 tag_surf = font_bold.render(f"[{last_solver_name}]", True, (185, 28, 28))
                 note = last_result.note if last_result.note else "No solution"
                 msg_surf = font_bold.render(f"No solution ({note})", True, (185, 28, 28))
                 total_w = tag_surf.get_width() + 8 + msg_surf.get_width()
-                cur_x = x + max(10, (w - total_w) // 2)
+                if total_w > w - 16:
+                    msg_surf = font_sm.render(f"No solution ({note})", True, (185, 28, 28))
+                    total_w = tag_surf.get_width() + 8 + msg_surf.get_width()
+                cur_x = x + max(8, (w - total_w) // 2)
                 surf.blit(tag_surf, (cur_x, y + (h - tag_surf.get_height()) // 2))
                 mx = cur_x + tag_surf.get_width() + 8
                 surf.blit(msg_surf, (mx, y + (h - msg_surf.get_height()) // 2))
@@ -178,8 +200,9 @@ def draw_dock_bar(screen: pygame.Surface, mouse_pos: Tuple[int, int],
 
     # Nút Path / Hide Path
     if btn_path is not None:
-        btn_path.enabled = not is_solving
-        if is_path_visible:
+        can_path = not is_solving and bool(last_result and last_result.solved)
+        btn_path.enabled = can_path
+        if is_path_visible and can_path:
             btn_path.text = 'Hide Path'
             btn_path.bg_color = (254, 240, 138)
             btn_path.hover_color = (253, 224, 71)

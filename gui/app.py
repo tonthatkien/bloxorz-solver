@@ -14,6 +14,7 @@ from gui.draw import draw_scene
 from gui.render_board import calculate_iso_layout
 from gui.sky import draw_sky_with_clouds
 from gui.help_modal import HelpModal
+from gui.dead_end_modal import DeadEndModal
 from gui.hud import (
     DOCK_W, DOCK_X, DOCK_Y, draw_dock_bar, draw_hud_status, draw_loss_banner, draw_win_banner,
 )
@@ -81,9 +82,12 @@ def run(level_path: str) -> None:
     tracer = RouteTracer()
     showing_intro = True
 
+    solve_start_move_count = 0
+
     def load_level_and_reset(path: str, delay_ms: int = 0, reset_solver: bool = True) -> None:
         """Tải màn chơi và thiết lập lại trạng thái."""
-        nonlocal level, game, current_level_path, tw, th, offset, skew, state, won, lost, move_count
+        nonlocal level, game, current_level_path, tw, th, offset, skew, state, won, lost, move_count, solve_start_move_count
+        dead_end_modal.close()
         tracer.hide()
         solver_mgr.reset(reset_result=reset_solver)
         current_level_path = path
@@ -91,6 +95,7 @@ def run(level_path: str) -> None:
         game = Game(level)
         tw, th, offset, skew = calculate_iso_layout(level.rows, level.cols, *WINDOW_SIZE)
         state, won, lost, move_count = game.initial_state(), False, False, 0
+        solve_start_move_count = 0
         anim.reset_for_level(pygame.time.get_ticks(), delay_ms=delay_ms)
 
     def _enter_game() -> None:
@@ -100,28 +105,47 @@ def run(level_path: str) -> None:
 
     def _return_to_intro() -> None:
         nonlocal showing_intro
+        dead_end_modal.close()
         tracer.hide()
         solver_mgr.reset(reset_result=True)
         intro.open(current_level_path)
         showing_intro = True
 
-    def _reset_play_state() -> None:
+    def _reset_play_state(to_state: Optional[State] = None, base_moves: int = 0) -> None:
         nonlocal state, won, lost, move_count
-        state, won, lost, move_count = game.initial_state(), False, False, 0
+        state = to_state if to_state is not None else game.initial_state()
+        won, lost, move_count = False, False, base_moves
         anim.reset_for_level(pygame.time.get_ticks())
         anim.spawning, anim.z_spawn = False, 0.0
 
-    def _start_solve(name: str) -> None:
+    def _start_solve(name: str, force_from_start: bool = False) -> None:
         """Chạy thuật toán tìm kiếm trên luồng nền."""
+        nonlocal solve_start_move_count
         if not solver_mgr.is_solving:
+            dead_end_modal.close()
             tracer.clear_data()
-            _reset_play_state()
-            solver_mgr.start_solve(name, level)
+            init_st = game.initial_state()
+            solve_from_current = (not force_from_start and state != init_st and not won and not lost)
+
+            target_start = state if solve_from_current else init_st
+            solve_start_move_count = move_count if solve_from_current else 0
+
+            if not solve_from_current:
+                _reset_play_state()
+
+            solver_mgr.start_solve(
+                name, level,
+                start_state=target_start,
+                is_from_progress=solve_from_current
+            )
 
     def _start_replay() -> None:
         """Phát lại lời giải tìm được."""
         if solver_mgr.start_replay():
-            _reset_play_state()
+            target_start = (solver_mgr.solve_start_state
+                            if solver_mgr.solve_start_state is not None
+                            else game.initial_state())
+            _reset_play_state(to_state=target_start, base_moves=solve_start_move_count)
 
     # Nút thanh tiêu đề
     rx = WINDOW_SIZE[0] - 24
@@ -156,6 +180,7 @@ def run(level_path: str) -> None:
 
     level_modal = LevelSelectorModal(WINDOW_SIZE, font_hud_val, font_btn, font_sub)
     help_modal  = HelpModal(WINDOW_SIZE, font_hud_val, font_dock_b, font_btn, font_dock_sm)
+    dead_end_modal = DeadEndModal(WINDOW_SIZE, font_hud_val, font_btn, font_sub)
     level_pill_rect = pygame.Rect(24, 20, 160, 38)
 
     while True:
@@ -163,14 +188,25 @@ def run(level_path: str) -> None:
         mouse_pos = pygame.mouse.get_pos()
 
         # Kiểm tra kết quả luồng giải
-        if solver_mgr.poll_queue():
-            if tracer.is_visible and solver_mgr.last_result and solver_mgr.last_result.solved:
-                tracer.load(game, solver_mgr.last_result, now, current_state=state)
+        solve_status = solver_mgr.poll_status()
+        if solve_status == 'solved':
+            tracer.is_visible = True
+            if solver_mgr.last_result and solver_mgr.last_result.solved:
+                start_st = (solver_mgr.solve_start_state
+                            if solver_mgr.solve_start_state is not None
+                            else game.initial_state())
+                tracer.load(game, solver_mgr.last_result, now, current_state=state,
+                            start_state=start_st)
             _start_replay()
+        elif solve_status == 'failed':
+            if solver_mgr.is_from_progress:
+                reason = solver_mgr.last_result.note if solver_mgr.last_result else ""
+                dead_end_modal.open(algo_name=solver_mgr.last_solver_name, reason=reason)
 
         can_control = (not showing_intro and not won and not lost and not anim.falling_goal
                        and not anim.falling_void and not anim.spawning and not fader.is_fading
                        and not level_modal.is_open and not help_modal.is_open
+                       and not dead_end_modal.is_open
                        and not solver_mgr.is_replaying and not solver_mgr.is_solving)
 
         # Cập nhật con trỏ chuột
@@ -178,10 +214,11 @@ def run(level_path: str) -> None:
             intro.is_any_hovered(mouse_pos) if showing_intro else
             level_modal.is_any_hovered(mouse_pos) if level_modal.is_open else
             help_modal.is_any_hovered(mouse_pos) if help_modal.is_open else
+            dead_end_modal.is_any_hovered(mouse_pos) if dead_end_modal.is_open else
             (level_pill_rect.collidepoint(mouse_pos) or
              any(b.is_hovered(mouse_pos) for b in (btn_home, btn_help, btn_restart, btn_new_game, btn_action, btn_speed, btn_path)) or
              any(b.is_hovered(mouse_pos) for b, _ in dock_algo_btns) or
-             (won and not tracer.is_visible and (btn_win_restart.is_hovered(mouse_pos) or btn_win_new_game.is_hovered(mouse_pos) or btn_win_next.is_hovered(mouse_pos))) or
+             (won and not tracer.is_review_mode and (btn_win_restart.is_hovered(mouse_pos) or btn_win_new_game.is_hovered(mouse_pos) or btn_win_next.is_hovered(mouse_pos))) or
              (lost and (btn_loss_restart.is_hovered(mouse_pos) or btn_loss_new_game.is_hovered(mouse_pos))))
         )
         try:
@@ -212,6 +249,14 @@ def run(level_path: str) -> None:
                 help_modal.handle_event(event)
                 continue
 
+            if dead_end_modal.is_open:
+                action = dead_end_modal.handle_event(event)
+                if action == 'restart_and_solve':
+                    _start_solve(solver_mgr.last_solver_name or 'BFS', force_from_start=True)
+                elif action == 'restart_level':
+                    load_level_and_reset(current_level_path, reset_solver=True)
+                continue
+
             if level_modal.is_open:
                 selected_level = level_modal.handle_event(event)
                 if selected_level is not None:
@@ -226,16 +271,22 @@ def run(level_path: str) -> None:
                 elif event.key == pygame.K_h:
                     help_modal.open()
                 elif event.key == pygame.K_r:
-                    load_level_and_reset(current_level_path, reset_solver=False)
+                    load_level_and_reset(current_level_path, reset_solver=True)
                 elif can_control and event.key == pygame.K_SPACE and not anim.animating:
                     ns, _ = _step(game, state, 'S')
                     if ns is not None:
+                        if tracer.is_visible or solver_mgr.last_result is not None:
+                            tracer.hide()
+                            solver_mgr.reset(reset_result=True)
                         state = ns
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
                     if not anim.animating:
                         ns, is_void = _step(game, state, action)
                         if ns is not None:
+                            if tracer.is_visible or solver_mgr.last_result is not None:
+                                tracer.hide()
+                                solver_mgr.reset(reset_result=True)
                             anim.start_roll(state, action, ns, is_void, now)
                     elif not anim.anim_is_void:
                         elapsed = now - anim.anim_start_time
@@ -252,26 +303,36 @@ def run(level_path: str) -> None:
                 elif btn_help.is_clicked(event):
                     help_modal.open()
                 elif btn_restart.is_clicked(event):
-                    load_level_and_reset(current_level_path, reset_solver=False)
+                    load_level_and_reset(current_level_path, reset_solver=True)
                 elif btn_action.is_clicked(event):
                     if solver_mgr.is_replaying:
                         solver_mgr.stop_replay()
                     else:
-                        if tracer.is_visible and solver_mgr.last_result and solver_mgr.last_result.solved and not tracer.path_states:
-                            tracer.load(game, solver_mgr.last_result, now, current_state=state)
+                        start_st = (solver_mgr.solve_start_state
+                                    if solver_mgr.solve_start_state is not None
+                                    else game.initial_state())
+                        if (tracer.is_visible and solver_mgr.last_result
+                                and solver_mgr.last_result.solved and not tracer.path_states):
+                            tracer.load(game, solver_mgr.last_result, now, current_state=state,
+                                        start_state=start_st)
                         _start_replay()
                 elif btn_speed.is_clicked(event):
                     new_sp = solver_mgr.cycle_speed()
                     btn_speed.text = f"{new_sp}x"
                 elif btn_path.is_clicked(event):
-                    tracer.toggle(game, solver_mgr.last_result, now, current_state=state)
-                elif won and not tracer.is_visible and btn_win_next.is_clicked(event):
+                    if solver_mgr.last_result and solver_mgr.last_result.solved:
+                        start_st = (solver_mgr.solve_start_state
+                                    if solver_mgr.solve_start_state is not None
+                                    else game.initial_state())
+                        tracer.toggle(game, solver_mgr.last_result, now, current_state=state,
+                                      start_state=start_st)
+                elif won and not tracer.is_review_mode and btn_win_next.is_clicked(event):
                     nxt = get_next_level_path(current_level_path)
                     (fader.start(now, lambda p=nxt: load_level_and_reset(p, delay_ms=SPAWN_DELAY_MS))
                      if nxt else level_modal.open(current_level_path))
-                elif (won and not tracer.is_visible and btn_win_restart.is_clicked(event)) or (lost and btn_loss_restart.is_clicked(event)):
-                    load_level_and_reset(current_level_path, reset_solver=False)
-                elif (won and not tracer.is_visible and btn_win_new_game.is_clicked(event)) or (lost and btn_loss_new_game.is_clicked(event)):
+                elif (won and not tracer.is_review_mode and btn_win_restart.is_clicked(event)) or (lost and btn_loss_restart.is_clicked(event)):
+                    load_level_and_reset(current_level_path, reset_solver=True)
+                elif (won and not tracer.is_review_mode and btn_win_new_game.is_clicked(event)) or (lost and btn_loss_new_game.is_clicked(event)):
                     level_modal.open(current_level_path)
                 else:
                     for b, algo in dock_algo_btns:
@@ -371,7 +432,8 @@ def run(level_path: str) -> None:
 
         # Vẽ giao diện và HUD
         is_lvl_hover = (level_pill_rect.collidepoint(mouse_pos)
-                        and not level_modal.is_open and not help_modal.is_open)
+                        and not level_modal.is_open and not help_modal.is_open
+                        and not dead_end_modal.is_open)
         level_pill_rect = draw_hud_status(screen, level.name, move_count, is_lvl_hover,
                                           font_hud_lbl, font_hud_val)
 
@@ -383,7 +445,7 @@ def run(level_path: str) -> None:
                       stats_box_x, stats_box_w, font_dock_b, font_dock_sm,
                       btn_path=btn_path, is_path_visible=tracer.is_visible)
 
-        if won and not tracer.is_visible:
+        if won and not tracer.is_review_mode:
             draw_win_banner(screen, mouse_pos, b_px, b_py, banner_w, banner_h,
                             move_count, font_title, font_sub,
                             btn_win_restart, btn_win_new_game, btn_win_next)
@@ -394,6 +456,7 @@ def run(level_path: str) -> None:
 
         if level_modal.is_open: level_modal.draw(screen, mouse_pos)
         if help_modal.is_open: help_modal.draw(screen, mouse_pos)
+        if dead_end_modal.is_open: dead_end_modal.draw(screen, mouse_pos)
 
         fader.update(now); fader.draw(screen, now)
         pygame.display.flip()
