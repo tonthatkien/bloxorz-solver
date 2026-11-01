@@ -94,6 +94,9 @@ def read_runs(path: Path, series_field: str = "solver") -> list[Run]:
         for key in ("length", "expanded_nodes"):
             if values[key] is not None and not values[key].is_integer():
                 raise ValueError(f"{label}/{key}: expected an integer")
+        if solved and mode == "unit" and not math.isclose(
+                values["cost"], values["length"], rel_tol=0, abs_tol=1e-6):
+            raise ValueError(f"{label}: unit cost must equal solution length")
         if not solved:
             values["length"] = values["cost"] = None
         optimal = _bool(row["optimal"], label) if row.get("optimal") else None
@@ -125,7 +128,13 @@ def check_heuristics(runs: list[Run]) -> None:
             raise ValueError(f"Missing zero baseline for {key}")
         ref = baseline[key]
         if not ref.solved:
+            if run.optimal is not None or any(run.values[k] is not None for k in DERIVED[1:]):
+                raise ValueError(
+                    f"{key}/{run.series}: derived values require a solved zero baseline")
             continue
+        if not run.solved and (run.optimal is not None or any(
+                run.values[k] is not None for k in ("node_ratio", "time_ratio"))):
+            raise ValueError(f"{key}/{run.series}: failed row cannot claim optimality or ratios")
         cost = ref.values["cost"]
         _same(run.values["optimal_cost"], cost, f"{key}/{run.series}/optimal_cost")
         if cost:

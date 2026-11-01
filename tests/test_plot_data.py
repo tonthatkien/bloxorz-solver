@@ -68,6 +68,41 @@ class TestPlotData(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing columns"):
             read_runs(self.path)
 
+    def test_unit_cost_must_match_length_but_weighted_may_differ(self) -> None:
+        self.write([self.row(cost="2.5")])
+        with self.assertRaisesRegex(ValueError, "unit cost must equal"):
+            read_runs(self.path)
+        self.write([self.row(cost="2.5", cost_mode="weighted")])
+        self.assertEqual(read_runs(self.path)[0].values["cost"], 2.5)
+        self.write([self.row(cost="2.000000000000001")])
+        self.assertAlmostEqual(read_runs(self.path)[0].values["cost"], 2)
+
+    def test_failed_heuristic_cannot_claim_optimality_or_performance_ratios(self) -> None:
+        zero = measured("g1_basic_01", "zero")
+        failed = replace(measured("g1_basic_01", "advanced"), solved=False, optimal=None,
+                         values={**zero.values, "node_ratio": None, "time_ratio": None})
+        check_heuristics([zero, failed])
+        for bad in (replace(failed, optimal=True),
+                    replace(failed, values={**failed.values, "node_ratio": .5}),
+                    replace(failed, values={**failed.values, "time_ratio": .5})):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, "failed row"):
+                    check_heuristics([zero, bad])
+
+    def test_unsolved_zero_baseline_cannot_have_derived_comparisons(self) -> None:
+        zero = measured("g1_basic_01", "zero")
+        empty = {**zero.values, **{k: None for k in (
+            "optimal_cost", "tightness", "node_ratio", "time_ratio")}}
+        failed = replace(zero, solved=False, optimal=None, values=empty)
+        other = replace(measured("g1_basic_01", "advanced"), optimal=None, values=empty)
+        check_heuristics([failed, other])
+        for bad in (replace(other, optimal=True),
+                    replace(other, values={**empty, "optimal_cost": 2}),
+                    replace(other, values={**empty, "tightness": .5})):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, "solved zero baseline"):
+                    check_heuristics([failed, bad])
+
     def test_geometric_mean_is_not_the_arithmetic_mean(self) -> None:
         self.assertAlmostEqual(geometric_mean([.25, 4]), 1)
         self.assertIsNone(geometric_mean([None]))
