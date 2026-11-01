@@ -1,0 +1,33 @@
+{
+  "name": "g4_mixed_06",
+  "grid": [
+    "..##########",
+    "..######.###",
+    "....#.######",
+    "....######.#",
+    "....#..#..##",
+    "...########.",
+    "...#.####.##",
+    "..###.###.##",
+    "#G###.##.###"
+  ],
+  "start": [0, 2],
+  "goal": [8, 1],
+  "fragile": [[0, 7], [5, 6], [5, 7]],
+  "bridges": [
+    {"id": 0, "pos": [4, 4], "open": true},
+    {"id": 11, "pos": [4, 7], "open": false},
+    {"id": 16, "pos": [3, 8], "open": false},
+    {"id": 31, "pos": [5, 4], "open": false},
+    {"id": 40, "pos": [5, 10], "open": true},
+    {"id": 55, "pos": [6, 6], "open": false}
+  ],
+  "switches": [
+    {"type": "split", "pos": [8, 6], "cubes": [[0, 8], [0, 11]]},
+    {"type": "heavy", "pos": [2, 7], "targets": [55], "mode": "toggle"},
+    {"type": "soft", "pos": [3, 9], "targets": [31], "mode": "permanent", "set": "open"},
+    {"type": "soft", "pos": [5, 5], "targets": [0], "mode": "toggle"},
+    {"type": "soft", "pos": [3, 5], "targets": [16], "mode": "permanent", "set": "open"},
+    {"type": "heavy", "pos": [5, 8], "targets": [40], "mode": "permanent", "set": "close"}
+  ]
+}
