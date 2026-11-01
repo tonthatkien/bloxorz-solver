@@ -28,7 +28,7 @@ def _validate_step_cost(step: float) -> None:
 
 
 def solve_with(game, heuristic: Union[str, Heuristic],
-               limits: Optional[Limits] = None) -> SearchResult:
+               limits: Optional[Limits] = None, record_trace: bool = False) -> SearchResult:
     """A* với heuristic tùy chọn (hàm hoặc tên); `cost` trong kết quả là g của nút đích."""
     h = get_heuristic(heuristic)
     checker = LimitChecker(limits)
@@ -42,16 +42,19 @@ def solve_with(game, heuristic: Union[str, Heuristic],
     counter = 0
     heap = [(h_start, counter, 0.0, start)]
     expanded = 0
+    order = []
     while heap:
         _f, _tie, g, state = heapq.heappop(heap)
         if g > best_g[state]:
             continue
         expanded += 1
         checker.tick(expanded)
+        if record_trace:
+            order.append(state)
         if game.is_goal(state):
             path = reconstruct_path(parent, state)
             return SearchResult(solved=True, path=path, expanded_nodes=expanded,
-                                length=len(path), cost=g)
+                                length=len(path), cost=g, expanded_order=order)
         for action, nxt, step in game.get_successors(state):
             _validate_step_cost(step)              # ← mới: chặn step<0/NaN/inf
             new_g = g + step
@@ -65,19 +68,19 @@ def solve_with(game, heuristic: Union[str, Heuristic],
             parent[nxt] = (state, action)
             counter += 1
             heapq.heappush(heap, (new_g + h_next, counter, new_g, nxt))
-    return SearchResult(solved=False, expanded_nodes=expanded)
+    return SearchResult(solved=False, expanded_nodes=expanded, expanded_order=order)
 
 
 def solver_for(heuristic: Union[str, Heuristic]) -> Callable[..., SearchResult]:
     """Trả về hàm solve(game, limits=None) dùng heuristic đã chọn (kiểm tra tên ngay)."""
     h = get_heuristic(heuristic)
 
-    def solver(game, limits: Optional[Limits] = None) -> SearchResult:
-        return solve_with(game, h, limits)
+    def solver(game, limits: Optional[Limits] = None, record_trace: bool = False) -> SearchResult:
+        return solve_with(game, h, limits, record_trace)
 
     return solver
 
 
-def solve(game, limits: Optional[Limits] = None) -> SearchResult:
+def solve(game, limits: Optional[Limits] = None, record_trace: bool = False) -> SearchResult:
     """A* với heuristic mặc định (chữ ký chung của mọi solver)."""
-    return solve_with(game, DEFAULT_HEURISTIC, limits)
+    return solve_with(game, DEFAULT_HEURISTIC, limits, record_trace)
