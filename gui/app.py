@@ -280,6 +280,7 @@ def run(level_path: str) -> None:
                             tracer.hide()
                             solver_mgr.reset(reset_result=True)
                         state = ns
+                        move_count += 1
                 elif can_control and event.key in _KEY_MAP:
                     action = _KEY_MAP[event.key]
                     if not anim.animating:
@@ -362,6 +363,7 @@ def run(level_path: str) -> None:
                     ns, _ = _step(game, state, 'S')
                     if ns is not None:
                         state = ns
+                        move_count += 1
                         anim.anim_is_split = True
                         anim.anim_split_tuple = state.split
                         solver_mgr.replay_last_time = now + int(REPLAY_SWAP_PAUSE_MS / solver_mgr.replay_speed)
@@ -444,7 +446,8 @@ def run(level_path: str) -> None:
                       solver_mgr.last_solver_name, solver_mgr.last_result, solver_mgr.is_replaying, solver_mgr.replay_speed,
                       btn_bfs, btn_dfs, btn_ucs, btn_astar, btn_action, btn_speed,
                       stats_box_x, stats_box_w, font_dock_b, font_dock_sm,
-                      btn_path=btn_path, is_path_visible=tracer.is_visible)
+                      btn_path=btn_path, is_path_visible=tracer.is_visible,
+                      is_from_progress=solver_mgr.is_from_progress, base_moves=solve_start_move_count)
 
         if won and not tracer.is_review_mode:
             draw_win_banner(screen, mouse_pos, b_px, b_py, banner_w, banner_h,
