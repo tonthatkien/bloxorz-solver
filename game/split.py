@@ -28,9 +28,6 @@ def activate_split_switch(old: State, landed: State, level: Level) -> Optional[S
     if switch is None or switch.type != "split" or not switch.cubes:
         return None
 
-    # Only activate on entering the standing-pressure condition, not by remaining
-    # on the same switch. A block that was lying over the tile may activate on
-    # becoming upright there.
     was_standing_on_same_switch = (
         old.split is None
         and old.orient == STAND

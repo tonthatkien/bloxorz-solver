@@ -7,7 +7,6 @@ TILE_EMPTY = 0
 TILE_FLOOR = 1
 TILE_GOAL = 2
 
-# Ký tự dùng khi dựng bản đồ từ chuỗi (khớp README và JSON màn chơi)
 _CHAR_TO_TILE = {"#": TILE_FLOOR, ".": TILE_EMPTY, " ": TILE_EMPTY, "G": TILE_GOAL}
 
 

@@ -62,7 +62,7 @@ def initial_h(game, name: str) -> object:
     reset_heuristic_caches()
     try:
         value = float(get_heuristic(name)(game, game.initial_state()))
-    except Exception:  # noqa: BLE001 - lỗi sẽ hiện ở dòng đo của chính heuristic này
+    except Exception: 
         return ""
     return round(value, 4) if math.isfinite(value) else ""
 

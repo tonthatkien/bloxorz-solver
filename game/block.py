@@ -2,13 +2,11 @@
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from .state import HORIZ, STAND, VERT  # nguồn sự thật duy nhất của tư thế khối
+from .state import HORIZ, STAND, VERT  
 
-# Hướng đi, theo thứ tự cố định của get_successors
 UP, DOWN, LEFT, RIGHT = "U", "D", "L", "R"
 MOVE_DIRECTIONS = (UP, DOWN, LEFT, RIGHT)
 
-# (tư thế, hướng) -> (tư thế mới, d_row, d_col). (r, c) luôn là ô trên-trái của khối.
 _ROLL_TABLE = {
     (STAND, UP): (VERT, -2, 0),
     (STAND, DOWN): (VERT, 1, 0),

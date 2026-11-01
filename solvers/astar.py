@@ -56,7 +56,7 @@ def solve_with(game, heuristic: Union[str, Heuristic],
             return SearchResult(solved=True, path=path, expanded_nodes=expanded,
                                 length=len(path), cost=g, expanded_order=order)
         for action, nxt, step in game.get_successors(state):
-            _validate_step_cost(step)              # ← mới: chặn step<0/NaN/inf
+            _validate_step_cost(step)           
             new_g = g + step
             if new_g >= best_g.get(nxt, math.inf):
                 continue

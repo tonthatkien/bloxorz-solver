@@ -13,7 +13,7 @@ cách đó là cận dưới của chi phí thật nên admissible. Phép nới 
 - h_split_cubes: đang tách. Hai cube phải ghép lại rồi khối ghép mới tới được đích.
 - h_advanced: h_split_cubes khi đang tách, ngược lại h_switch_aware (mặc định của A*).
 
-Định nghĩa và chứng minh admissible/consistent: docs/cost_heuristic.md, mục III.
+Định nghĩa và chứng minh admissible/consistent: xem phần heuristic trong báo cáo.
 Dữ liệu tính trước được cache theo đối tượng Level; gọi clear_caches() khi nạp lại màn hoặc trong
 test.
 """
