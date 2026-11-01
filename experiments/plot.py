@@ -1,4 +1,4 @@
-"""F4: reproducible solver/heuristic figures from F3 CSVs (PNG and vector PDF)."""
+"""F4: reproducible solver/heuristic figures from F3 CSVs (PNG, vector PDF and SVG)."""
 import argparse
 from contextlib import nullcontext
 import hashlib
@@ -7,6 +7,7 @@ from pathlib import Path
 from statistics import fmean
 from typing import Sequence
 
+from .plot_axes import format_value
 from .plot_data import (HEURISTICS, MODES, Run, check_heuristics, geometric_mean,
                         optimality_counts, ordered, paired_values, read_runs, solver_ratios,
                         validate_summary)
@@ -21,14 +22,15 @@ LABELS = {"zero": "Zero (h=0)", "manhattan": "Manhattan",
 MODE_LABELS = {"unit": "Chi phí đều (unit)", "weighted": "Chi phí không đều (weighted)"}
 
 
-def _heuristic_figure(runs: list[Run], mode: str):
+def _heuristic_figure(runs: list[Run], mode: str, metrics: tuple[str, ...]):
     import matplotlib.pyplot as plt
 
-    metrics = ("expanded_nodes", "time_sec", "peak_memory_kb", "tightness")
-    titles = ("Số nút đã mở rộng / h=0", "Thời gian / h=0",
-              "Bộ nhớ đỉnh / h=0", "Độ sát: h(start) / C*")
-    fig, axes = plt.subplots(4, 1, figsize=(REPORT_WIDTH_INCHES, MAIN_HEIGHT_INCHES))
-    for ax, metric, title in zip(axes.flat, metrics, titles):
+    titles = {"expanded_nodes": "Số nút đã mở rộng / h=0", "time_sec": "Thời gian / h=0",
+              "peak_memory_kb": "Bộ nhớ đỉnh / h=0", "tightness": "Độ sát: h(start) / C*"}
+    fig, axes = plt.subplots(len(metrics), 1, squeeze=False,
+                             figsize=(REPORT_WIDTH_INCHES, MAIN_HEIGHT_INCHES))
+    for ax, metric in zip(axes.flat, metrics):
+        title = titles[metric]
         paired, total = paired_values(runs, mode, metric)
         count = len(next(iter(paired.values()), []))
         values = {name: (fmean(data) if metric == "tightness" else geometric_mean(data))
@@ -36,9 +38,10 @@ def _heuristic_figure(runs: list[Run], mode: str):
         for i, (name, value) in enumerate(values.items()):
             if value is not None:
                 ax.barh(i, value, color=COLORS[i % len(COLORS)], height=.63)
-            ax.text((value or 0) + .025, i, "N/A" if value is None else f"{value:.3f}",
-                    va="center", fontsize=11)
+            ax.text((value or 0) + .025, i, "N/A" if value is None else format_value(value),
+                    va="center", fontsize=11.5)
         ax.set_yticks(range(len(values)), [LABELS.get(n, n) for n in values])
+        ax.tick_params(axis="both", labelsize=12, pad=8)
         ax.invert_yaxis()
         ax.axvline(1, color="#475569", linestyle="--", linewidth=1)
         largest = max((v for v in values.values() if v is not None), default=1)
@@ -51,7 +54,7 @@ def _heuristic_figure(runs: list[Run], mode: str):
     fig.text(.025, .015, "Mốc: A* h=0 cùng màn và chế độ; n: màn chung / tổng số màn.\n"
              "Ratio: trung bình nhân, thấp hơn tốt hơn; độ sát: trung bình cộng.\n"
              "Độ sát gần 1 là sát hơn; phép đo 0 không dùng làm log-ratio.", fontsize=10.5)
-    fig.tight_layout(rect=(0, .095, 1, .92), h_pad=1.0)
+    fig.subplots_adjust(left=.31, right=.98, bottom=.14, top=.82, hspace=.70)
     return fig
 
 
@@ -76,7 +79,7 @@ def _group_figure(runs: list[Run]):
     finite = [v for _, _, rows, _ in panels for row in rows for v in row if v is not None]
     largest = max(finite, default=1)
     norm = TwoSlopeNorm(vmin=0, vcenter=1, vmax=max(1.1, largest))
-    fig, axes = plt.subplots(len(modes), 1, figsize=(8, 4.1 * len(modes)),
+    fig, axes = plt.subplots(len(modes), 1, figsize=(8, 4.8 * len(modes)),
                              squeeze=False, layout="constrained")
     for row, mode in enumerate(modes):
         ax = axes[row, 0]
@@ -90,7 +93,7 @@ def _group_figure(runs: list[Run]):
             for j, value in enumerate(cells):
                 label = "N/A" if value is None else f"{value:.3f}\nn={counts[i][j]}"
                 color = "white" if value is not None and value < .3 else "black"
-                ax.text(j + .5, i + .5, label, ha="center", va="center", fontsize=11.5,
+                ax.text(j + .5, i + .5, label, ha="center", va="center", fontsize=12,
                         color=color)
         labels = [f"{metric}\n{g.upper()}" for metric in ("Nút", "TG") for g in groups]
         ax.set_xticks([j + .5 for j in range(len(labels))], labels, fontsize=11.5)
@@ -105,7 +108,7 @@ def _group_figure(runs: list[Run]):
 
 
 def render(results: list[Run], heuristics: list[Run], output: Path,
-           formats: Sequence[str] = ("png", "pdf"), dpi: int = 300) -> list[Path]:
+           formats: Sequence[str] = ("png", "pdf", "svg"), dpi: int = 300) -> list[Path]:
     """Render report figures with a headless backend; no plotting imports during tests."""
     import matplotlib
     matplotlib.use("Agg")
@@ -116,15 +119,25 @@ def render(results: list[Run], heuristics: list[Run], output: Path,
                          "pdf.fonttype": 42, "svg.fonttype": "none", "axes.titlepad": 10})
     output.mkdir(parents=True, exist_ok=True)
     paths = []
-    factories = [(f"solvers_{m}", lambda m=m: solver_figure(results, m)) for m in MODES
-                 if any(r.mode == m for r in results)]
+    metric_pairs = (("efficiency", ("expanded_nodes", "time_sec")),
+                    ("memory_cost", ("peak_memory_kb", "cost")))
+    factories = [(f"solvers_{m}_{part}", lambda m=m, ms=ms: solver_figure(results, m, ms))
+                 for m in MODES if any(r.mode == m for r in results)
+                 for part, ms in metric_pairs]
     if heuristics:
-        factories += [(f"heuristics_{m}", lambda m=m: _heuristic_figure(heuristics, m))
-                      for m in MODES
-                      if any(r.mode == m for r in heuristics)]
+        heuristic_pairs = (("efficiency", ("expanded_nodes", "time_sec")),
+                           ("memory_tightness", ("peak_memory_kb", "tightness")))
+        factories += [(f"heuristics_{m}_{part}",
+                       lambda m=m, ms=ms: _heuristic_figure(heuristics, m, ms))
+                      for m in MODES if any(r.mode == m for r in heuristics)
+                      for part, ms in heuristic_pairs]
         factories += [("heuristics_groups", lambda: _group_figure(heuristics))]
-    factories += [(f"appendix_solvers_{m}", lambda m=m: solver_appendix(results, m))
-                  for m in MODES if any(r.mode == m for r in results)]
+    appendix_pairs = (("resources", ("time_sec", "peak_memory_kb")),
+                      ("search", ("expanded_nodes", "length")), ("cost", ("cost",)))
+    factories += [(f"appendix_solvers_{m}_{part}",
+                   lambda m=m, ms=ms: solver_appendix(results, m, ms))
+                  for m in MODES if any(r.mode == m for r in results)
+                  for part, ms in appendix_pairs if part != "cost" or m == "weighted"]
     book_path = output / "all_figures.pdf"
     book_context = PdfPages(book_path) if "pdf" in formats else nullcontext(None)
     with book_context as book:
@@ -141,8 +154,12 @@ def render(results: list[Run], heuristics: list[Run], output: Path,
                 plt.close(fig)
     if "pdf" in formats:
         paths.append(book_path)
-    for suffix in ("png", "pdf", "svg"):
-        (output / f"heuristics_quality.{suffix}").unlink(missing_ok=True)
+    retired = ("heuristics_quality", "solvers_unit", "solvers_weighted",
+               "heuristics_unit", "heuristics_weighted",
+               "appendix_solvers_unit", "appendix_solvers_weighted")
+    for stem in retired:
+        for suffix in ("png", "pdf", "svg"):
+            (output / f"{stem}.{suffix}").unlink(missing_ok=True)
     return paths
 
 
@@ -154,7 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--summary", type=Path)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "results/f4")
     parser.add_argument("--formats", nargs="+", choices=("png", "pdf", "svg"),
-                        default=["png", "pdf"])
+                        default=["png", "pdf", "svg"])
     parser.add_argument("--dpi", type=int, default=300)
     args = parser.parse_args(argv)
     if args.dpi <= 0 or (args.summary and not args.heuristics):
@@ -183,7 +200,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                                    "heuristic": "A* h=0 on the same level and cost_mode"},
                 "heuristic_optimality": optimality_counts(heuristics),
                 "quality_note": "Observed cost agreement does not prove admissibility",
-                "page_order": "grouped solvers, heuristics, per-level solver appendices",
+                "page_order": "two-panel solver and heuristic pages, groups, per-level appendices",
                 "aggregation": "geometric mean of common positive ratios; arithmetic tightness",
                 "failure_policy": {"solver": "common solved positive values; keep nonoptimal paths",
                                    "heuristic": "common optimal cohorts with positive ratios"}}

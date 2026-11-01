@@ -13,7 +13,7 @@ PowerShell: viết lệnh thành một dòng hoặc dùng dấu backtick để x
 Các đường dẫn có khoảng trắng cần đặt trong dấu nháy. Có thể truyền trực tiếp
 ba CSV nhận từ F3 ở vị trí khác; không cần copy vào repository.
 
-Mặc định xuất vào `experiments/results/f4/`, PNG 300 dpi và PDF vector.
+Mặc định xuất vào `experiments/results/f4/`, PNG 300 dpi, PDF vector và SVG.
 Thêm `--out-dir <folder>`, `--formats png pdf svg` hoặc `--dpi 600` nếu cần.
 Nếu chỉ có kết quả solver, bỏ hai tham số `--heuristics` và `--summary`.
 Không sửa mã/đổi tên cột F3, không chạy lại solver khi vẽ.
@@ -22,17 +22,40 @@ Không sửa mã/đổi tên cột F3, không chạy lại solver khi vẽ.
 
 | Tên | Nội dung |
 |---|---|
-| `solvers_unit`, `solvers_weighted` | Cột nhóm G1–G4: trung bình nhân node/time/memory/cost ratio so với UCS; trục log, mốc 1 |
-| `appendix_solvers_unit`, `appendix_solvers_weighted` | Phụ lục: time/memory/nodes/length/cost tuyệt đối từng màn |
-| `heuristics_unit`, `heuristics_weighted` | Node/time/memory ratio so với A* h=0 và tightness |
+| `solvers_{unit,weighted}_efficiency` | Hai panel số nút và thời gian / UCS, theo G1–G4 |
+| `solvers_{unit,weighted}_memory_cost` | Hai panel bộ nhớ và chi phí / UCS, theo G1–G4 |
+| `heuristics_{unit,weighted}_efficiency` | Hai panel số nút và thời gian / A* h=0 |
+| `heuristics_{unit,weighted}_memory_tightness` | Hai panel bộ nhớ / A* h=0 và độ sát |
 | `heuristics_groups` | Heatmap node/time ratio theo G1–G4, cùng thang màu |
-| `all_figures.pdf` | 5 hình chính, sau đó 2 phụ lục khi đủ cả hai chế độ và heuristic |
+| `appendix_solvers_{unit,weighted}_resources` | Hai panel thời gian, bộ nhớ tuyệt đối từng màn |
+| `appendix_solvers_{unit,weighted}_search` | Hai panel số nút, độ dài tuyệt đối từng màn |
+| `appendix_solvers_weighted_cost` | Chi phí tuyệt đối từng màn ở weighted |
+| `all_figures.pdf` | 9 hình chính, sau đó 5 trang phụ lục |
 | `manifest.json` | SHA-256 đầu vào, số dòng, quy tắc, nhãn màn và số liệu tối ưu heuristic |
 
-Mỗi tên hình có đuôi PNG/PDF theo `--formats`. Không commit CSV gốc hoặc file
-hình sinh tự động; thư mục output mặc định được Git ignore. Bộ đầy đủ gồm 7 PNG,
-7 PDF riêng và PDF tổng hợp 7 trang. Sau khi vẽ thành công, công cụ xóa
-`heuristics_quality.png/pdf/svg` cũ trong output để tránh dùng nhầm hình đã bỏ.
+Mỗi tên hình có đuôi theo `--formats`. Bộ đầy đủ gồm 14 PNG 300 dpi,
+14 PDF vector, 14 SVG và PDF tổng hợp 14 trang (43 file hình).
+Không commit CSV gốc hoặc hình sinh tự động; output mặc định được Git ignore.
+Sau khi vẽ thành công, công cụ xóa các tên hình bốn panel và phụ lục rộng cũ,
+cùng `heuristics_quality.png/pdf/svg`, để tránh chèn nhầm bản cũ vào báo cáo.
+
+## Bố cục cho A4
+
+- Mỗi hình chính và phụ lục có tối đa hai panel xếp dọc; chiều rộng 7.2 inch,
+  chiều cao 8.3 inch (phụ lục một panel: 5.4 inch). Khi chèn bằng
+  `\includegraphics[width=\linewidth]{...pdf}`, cỡ chữ trục chính còn khoảng 10 pt.
+- Trục log ghi nhãn mốc lũy thừa 10 bằng `LogLocator` và `LogFormatterMathtext`;
+  `NullFormatter` ẩn nhãn minor. Tăng lề trái, tick padding, label padding và khoảng
+  cách giữa các panel; không đặt cận log bằng 0.
+- Nhãn cột dùng năm chữ số có nghĩa, xoay dọc để tách bốn cột hẹp mỗi nhóm.
+  Tỉ số như 1.0134 vẫn khác 1; chỉ định dạng hiển thị, không làm tròn dữ liệu tính.
+  Đo kích thước nhãn sau render và mở thêm khoảng trống trên trục khi cần.
+- Giá trị thiếu/0 không được đổi thành epsilon. Hình solver dùng cohort dương
+  chung và N/A khi không đủ mẫu; phụ lục chuyển sang tuyến tính nếu có phép đo 0.
+- Hình heuristic giữ trục tuyến tính để hiển thị độ sát bằng 0 và các tỉ số gần
+  nhau; không thay đổi thang log của so sánh solver hoặc phụ lục có giá trị dương.
+- Ưu tiên PDF vector trong LaTeX; SVG giữ chữ tiếng Việt dưới dạng text,
+  PNG 300 dpi dành cho phần mềm không đọc vector. Kiểm tra cả PDF A4 sau biên dịch.
 
 ## Quy tắc diễn giải
 
@@ -47,9 +70,9 @@ hình sinh tự động; thư mục output mặc định được Git ignore. B�
   Cần có series UCS; UCS thiếu/thất bại ở một màn thì màn đó bị loại cho mọi solver.
 - Màu theo tên thuật toán, không theo vị trí series: BFS `#1F77B4`, DFS `#FF7F0E`,
   UCS `#2CA02C`, A* `#D62728`; thiếu một thuật toán không làm đổi màu thuật toán khác.
-- Hình chính dùng một cột panel, font lớn hơn; heatmap có một panel mỗi chế độ,
+- Hình chính dùng một cột, tối đa hai panel; heatmap có một panel mỗi chế độ,
   bốn cột Nút G1–G4 rồi bốn cột TG G1–G4 (TG = thời gian), cùng thang màu.
-  Giá trị trên cột solver làm tròn ba chữ số có nghĩa; dữ liệu tính không làm tròn lại.
+  Giá trị trên cột solver dùng năm chữ số có nghĩa; dữ liệu tính không làm tròn lại.
 - Node/time/memory/cost ratio dùng trục log, mốc ngang 1. Ở unit, cost ratio cũng
   là length ratio. Ở weighted, cost ratio dùng cost của UCS làm mốc tối ưu tham
   chiếu; BFS không được giả định bằng 1 vì ít bước nhất không bảo đảm cost thấp nhất.

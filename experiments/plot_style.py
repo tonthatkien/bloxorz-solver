@@ -2,7 +2,7 @@
 
 SOLVER_COLORS = {"bfs": "#1F77B4", "dfs": "#FF7F0E", "ucs": "#2CA02C", "astar": "#D62728"}
 REPORT_WIDTH_INCHES = 7.2
-MAIN_HEIGHT_INCHES = 10.3
+MAIN_HEIGHT_INCHES = 8.3
 DISPLAY_UNITS = {"time": "seconds", "memory": "MB (decimal, KiB * 1024 / 1000000)"}
 
 
