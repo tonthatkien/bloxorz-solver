@@ -64,6 +64,7 @@ def run(level_path: str) -> None:
     font_hud_lbl, font_btn = pygame.font.SysFont(fam, 15, bold=True), pygame.font.SysFont(fam, 15, bold=True)
     font_hud_val, font_dock_b = pygame.font.SysFont(fam, 20, bold=True), pygame.font.SysFont(fam, 14, bold=True)
     font_dock_sm = pygame.font.SysFont(fam, 13)
+    font_desc = pygame.font.SysFont(fam, 14)
 
     # Game Core và bố cục isometric
     current_level_path = level_path
@@ -180,7 +181,7 @@ def run(level_path: str) -> None:
 
     level_modal = LevelSelectorModal(WINDOW_SIZE, font_hud_val, font_btn, font_sub)
     help_modal  = HelpModal(WINDOW_SIZE, font_hud_val, font_dock_b, font_btn, font_dock_sm)
-    dead_end_modal = DeadEndModal(WINDOW_SIZE, font_hud_val, font_btn, font_sub)
+    dead_end_modal = DeadEndModal(WINDOW_SIZE, font_hud_val, font_btn, font_desc)
     level_pill_rect = pygame.Rect(24, 20, 160, 38)
 
     while True:

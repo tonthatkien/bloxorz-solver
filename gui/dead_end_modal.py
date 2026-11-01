@@ -12,17 +12,32 @@ class DeadEndModal:
                  window_size: Tuple[int, int],
                  font_title: pygame.font.Font,
                  font_btn: pygame.font.Font,
-                 font_desc: pygame.font.Font) -> None:
+                 font_desc: Optional[pygame.font.Font] = None,
+                 font_badge: Optional[pygame.font.Font] = None) -> None:
         self.window_size = window_size
         self.font_title = font_title
         self.font_btn = font_btn
-        self.font_desc = font_desc
+
+        if font_desc is not None and font_desc.get_height() <= 22:
+            self.font_desc = font_desc
+        else:
+            sys_fonts = pygame.font.get_fonts()
+            fam = 'trebuchetms' if 'trebuchetms' in sys_fonts else ('verdana' if 'verdana' in sys_fonts else 'arial')
+            self.font_desc = pygame.font.SysFont(fam, 14)
+
+        if font_badge is not None:
+            self.font_badge = font_badge
+        else:
+            sys_fonts = pygame.font.get_fonts()
+            fam = 'trebuchetms' if 'trebuchetms' in sys_fonts else ('verdana' if 'verdana' in sys_fonts else 'arial')
+            self.font_badge = pygame.font.SysFont(fam, 12, bold=True)
+
         self.is_open: bool = False
         self.algo_name: str = ""
         self.reason: str = ""
 
-        # Kích thước modal
-        modal_w, modal_h = 520, 270
+        # Kích thước modal: rộng 560px để thoải mái không gian cho chữ và các nút
+        modal_w, modal_h = 560, 270
         mx = (window_size[0] - modal_w) // 2
         my = (window_size[1] - modal_h) // 2
         self.modal_rect = pygame.Rect(mx, my, modal_w, modal_h)
@@ -41,25 +56,25 @@ class DeadEndModal:
         btn_h = 40
         b_kw = dict(border_color=(30, 41, 59), border_width=2, shadow_offset=2, border_radius=10)
 
-        # Nút 1: Restart & Solve
+        # Nút 1: Restart & Solve (170px)
         self.btn_solve_start = Button(
-            (self.modal_rect.x + 20, btn_y, 160, btn_h),
-            "Restart and Solve", font_btn,
+            (self.modal_rect.x + 24, btn_y, 170, btn_h),
+            "Restart & Solve", font_btn,
             bg_color=(59, 130, 246), hover_color=(37, 99, 235),
             text_color=(255, 255, 255), **b_kw
         )
 
-        # Nút 2: Restart Level
+        # Nút 2: Restart Level (150px)
         self.btn_restart = Button(
-            (self.modal_rect.x + 190, btn_y, 140, btn_h),
+            (self.modal_rect.x + 208, btn_y, 150, btn_h),
             "Restart Level", font_btn,
             bg_color=(241, 245, 249), hover_color=(226, 232, 240),
             text_color=(30, 41, 59), **b_kw
         )
 
-        # Nút 3: Keep Trying / Cancel
+        # Nút 3: Keep Trying / Cancel (154px)
         self.btn_cancel = Button(
-            (self.modal_rect.x + 340, btn_y, 160, btn_h),
+            (self.modal_rect.x + 372, btn_y, 164, btn_h),
             "Keep Trying", font_btn,
             bg_color=(255, 255, 255), hover_color=(248, 250, 252),
             text_color=(71, 85, 105), **b_kw
@@ -134,36 +149,42 @@ class DeadEndModal:
         )
 
         # 3. Badge cảnh báo đỏ/cam
-        badge_rect = (self.modal_rect.x + 24, self.modal_rect.top + 20, 160, 26)
+        b_txt = "DEAD END DETECTED"
+        badge_surf = self.font_badge.render(b_txt, True, (185, 28, 28))
+        badge_w = badge_surf.get_width() + 20
+        badge_h = 24
+        badge_rect = (self.modal_rect.x + 24, self.modal_rect.top + 20, badge_w, badge_h)
         draw_aa_round_rect(
             surface, badge_rect, (254, 226, 226), border_radius=6,
             border_color=(239, 68, 68), border_width=1
         )
-        badge_text = self.font_desc.render("DEAD END DETECTED", True, (185, 28, 28))
-        surface.blit(badge_text, (self.modal_rect.x + 32, self.modal_rect.top + 24))
+        surface.blit(badge_surf, (
+            self.modal_rect.x + 34,
+            self.modal_rect.top + 20 + (badge_h - badge_surf.get_height()) // 2
+        ))
 
         # Nút đóng 'X'
         self.btn_close.draw(surface, mouse_pos)
 
         # 4. Tiêu đề
         title_surf = self.font_title.render("No Solution From Current State", True, (15, 23, 42))
-        surface.blit(title_surf, (self.modal_rect.x + 24, self.modal_rect.top + 58))
+        surface.blit(title_surf, (self.modal_rect.x + 24, self.modal_rect.top + 56))
 
         # 5. Nội dung mô tả
         if self.reason == "timeout":
             desc_l1 = "The search timed out without reaching the goal."
-            desc_l2 = "Would you like to solve from the start or keep trying manually?"
+            desc_l2 = "Would you like to restart from the beginning and solve?"
         elif self.reason == "node_limit":
             desc_l1 = "Search node limit was exceeded without reaching the goal."
-            desc_l2 = "Would you like to solve from the start or keep trying manually?"
+            desc_l2 = "Would you like to restart from the beginning and solve?"
         else:
             desc_l1 = "No valid path to the goal exists from this position."
-            desc_l2 = "A bridge or fragile tile may have become permanently unreachable."
+            desc_l2 = "A bridge or fragile tile may be permanently unreachable."
 
         s_l1 = self.font_desc.render(desc_l1, True, (71, 85, 105))
         s_l2 = self.font_desc.render(desc_l2, True, (100, 116, 139))
-        surface.blit(s_l1, (self.modal_rect.x + 24, self.modal_rect.top + 98))
-        surface.blit(s_l2, (self.modal_rect.x + 24, self.modal_rect.top + 122))
+        surface.blit(s_l1, (self.modal_rect.x + 24, self.modal_rect.top + 96))
+        surface.blit(s_l2, (self.modal_rect.x + 24, self.modal_rect.top + 120))
 
         # Đường kẻ phân cách
         pygame.draw.line(
