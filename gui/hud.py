@@ -35,7 +35,8 @@ def draw_hud_pill(surf: pygame.Surface, x: int, y: int,
 def draw_dock_stats(surf: pygame.Surface, x: int, y: int, w: int, h: int,
                     is_solving: bool, solving_name: str,
                     last_solver_name: str, last_result: Optional[SearchResult],
-                    font_bold: pygame.font.Font, font_sm: pygame.font.Font) -> None:
+                    font_bold: pygame.font.Font, font_sm: pygame.font.Font,
+                    is_from_progress: bool = False, base_moves: int = 0) -> None:
     """Vẽ thông số hiệu năng của thuật toán tìm kiếm bên trong thanh dock."""
     draw_aa_round_rect(surf, (x, y, w, h), (241, 245, 249),
                        border_radius=8, border_color=(30, 41, 59), border_width=1)
@@ -69,7 +70,10 @@ def draw_dock_stats(surf: pygame.Surface, x: int, y: int, w: int, h: int,
                 else:
                     nodes_str = f"{nodes:,} nodes"
 
-                len_str = f"{last_result.length} moves"
+                if is_from_progress and base_moves > 0:
+                    len_str = f"+{last_result.length} moves ({base_moves + last_result.length} total)"
+                else:
+                    len_str = f"{last_result.length} moves"
 
                 info_str = f"{time_str} • {mem_str} • {nodes_str} • {len_str}"
                 render_font = font_bold
@@ -137,7 +141,8 @@ def draw_dock_bar(screen: pygame.Surface, mouse_pos: Tuple[int, int],
                   btn_action: Button, btn_speed: Button,
                   stats_box_x: int, stats_box_w: int,
                   font_dock_b: pygame.font.Font, font_dock_sm: pygame.font.Font,
-                  btn_path: Optional[Button] = None, is_path_visible: bool = False) -> None:
+                  btn_path: Optional[Button] = None, is_path_visible: bool = False,
+                  is_from_progress: bool = False, base_moves: int = 0) -> None:
     """Vẽ thanh dock điều khiển giải thuật toán và replay ở cạnh dưới màn hình."""
     # Nền Dock
     draw_aa_round_rect(screen, (DOCK_X, DOCK_Y, DOCK_W, DOCK_H),
@@ -219,7 +224,8 @@ def draw_dock_bar(screen: pygame.Surface, mouse_pos: Tuple[int, int],
     # Hộp hiển thị thống kê
     draw_dock_stats(screen, stats_box_x, DOCK_Y + 6, stats_box_w, 32,
                     is_solving, solving_name, last_solver_name, last_result,
-                    font_dock_b, font_dock_sm)
+                    font_dock_b, font_dock_sm,
+                    is_from_progress=is_from_progress, base_moves=base_moves)
 
 
 def draw_win_banner(screen: pygame.Surface, mouse_pos: Tuple[int, int],
