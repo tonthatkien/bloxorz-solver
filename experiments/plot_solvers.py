@@ -2,13 +2,13 @@
 from typing import TYPE_CHECKING
 
 from .plot_data import METRICS, SOLVERS, Run, geometric_mean, ordered, solver_ratios
+from .plot_style import MAIN_HEIGHT_INCHES, REPORT_WIDTH_INCHES, display_value, solver_color
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
-COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7")
 LABELS = {"bfs": "BFS", "dfs": "DFS", "ucs": "UCS", "astar": "A*"}
-METRIC_LABELS = {"time_sec": "Thời gian (ms)", "peak_memory_kb": "Bộ nhớ đỉnh (KiB)",
+METRIC_LABELS = {"time_sec": "Thời gian (s)", "peak_memory_kb": "Bộ nhớ đỉnh (MB)",
                  "expanded_nodes": "Số nút mở rộng", "length": "Độ dài lời giải (bước)",
                  "cost": "Chi phí lời giải"}
 MODE_LABELS = {"unit": "Chi phí đều (unit)", "weighted": "Chi phí không đều (weighted)"}
@@ -33,7 +33,7 @@ def solver_figure(runs: list[Run], mode: str) -> "Figure":
     metrics = ("expanded_nodes", "time_sec", "peak_memory_kb", "cost")
     titles = ("Số nút mở rộng / UCS", "Thời gian / UCS", "Bộ nhớ đỉnh / UCS",
               "Chi phí lời giải / UCS" + (" (= độ dài / UCS)" if mode == "unit" else ""))
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig, axes = plt.subplots(4, 1, figsize=(REPORT_WIDTH_INCHES, MAIN_HEIGHT_INCHES))
     width = .8 / len(names)
     for ax, metric, title in zip(axes.flat, metrics, titles):
         batches = [solver_ratios(runs, mode, metric, group) for group in groups]
@@ -41,24 +41,24 @@ def solver_figure(runs: list[Run], mode: str) -> "Figure":
             values = [geometric_mean(paired[name]) for paired, _ in batches]
             x = np.arange(len(groups)) + (index - (len(names)-1)/2) * width
             ax.bar(x, [np.nan if v is None else v for v in values], width=width,
-                   color=COLORS[index % len(COLORS)], label=LABELS.get(name, name))
+                   color=solver_color(name), label=LABELS.get(name, name))
             for pos, value in zip(x, values):
                 if value is None:
                     ax.text(pos, .04, "N/A", transform=ax.get_xaxis_transform(),
-                            ha="center", va="bottom", rotation=90, fontsize=9)
+                            ha="center", va="bottom", rotation=90, fontsize=10.5)
                 else:
-                    ax.annotate(f"{value:.2f}", (pos, value), xytext=(0, 4),
-                                textcoords="offset points", ha="center", fontsize=8)
+                    ax.annotate(f"{value:.3g}", (pos, value), xytext=(0, 4),
+                                textcoords="offset points", ha="center", va="bottom",
+                                rotation=90, fontsize=10.5)
         _format_group_axis(ax, groups, batches, title)
     handles, labels = axes.flat[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(.5, .95),
+    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(.5, .94),
                ncol=len(names), frameon=False)
-    fig.suptitle("So sánh thuật toán theo nhóm màn · " + MODE_LABELS[mode], fontsize=17)
-    fig.text(.025, .015, "Trung bình nhân của tỉ số trên từng màn so với UCS; thấp hơn tốt hơn. "
-             "n: số màn hợp lệ chung / tổng số màn.\nGiữ cả lời giải chưa tối ưu; "
-             "BFS không bảo đảm cost tối ưu ở weighted. UCS là mốc cost tối ưu tham chiếu.",
-             fontsize=10)
-    fig.tight_layout(rect=(0, .08, 1, .89))
+    fig.suptitle("So sánh thuật toán theo nhóm màn\n" + MODE_LABELS[mode], fontsize=14)
+    fig.text(.025, .015, "Trung bình nhân tỉ số từng màn/UCS; n: màn chung / tổng số màn.\n"
+             "Giữ lời giải chưa tối ưu. BFS weighted không bảo đảm cost tối ưu.\n"
+             "Đường ngang 1: UCS, mốc cost tối ưu tham chiếu.", fontsize=10.5)
+    fig.tight_layout(rect=(0, .095, 1, .90), h_pad=1.0)
     return fig
 
 
@@ -69,13 +69,16 @@ def _format_group_axis(ax, groups, batches, title):
     ax.set_xticks(range(len(groups)),
                   [f"{g.upper()}\nn={len(next(iter(p.values()), []))}/{total}"
                    for g, (p, total) in zip(groups, batches)])
-    ax.set_title(title, loc="left", fontsize=12)
-    ax.set_ylabel("Tỉ số so với UCS · thang log")
+    ax.set_title(title, loc="left", fontsize=12.5)
+    ax.set_ylabel("Tỉ số (log)")
     ax.grid(axis="y", alpha=.2)
     ax.set_axisbelow(True)
     ax.spines[["top", "right"]].set_visible(False)
-    bottom, top = ax.get_ylim()
-    ax.set_ylim(min(bottom, .8), max(top * 1.35, 1.5))
+    bottom, _ = ax.get_ylim()
+    bottom = min(bottom, .8)
+    largest = max([1, *[p.get_height() for p in ax.patches if p.get_height() > 0]])
+    # Reserve upper log-space for vertical value labels without touching the title.
+    ax.set_ylim(bottom, largest * (largest / bottom) ** .7)
 
 
 def solver_appendix(runs: list[Run], mode: str) -> "Figure":
@@ -98,14 +101,13 @@ def solver_appendix(runs: list[Run], mode: str) -> "Figure":
                 value = run.values[metric] if run and run.solved else None
                 if value is None:
                     failed.append(x)
-                scale = 1000 if metric == "time_sec" else 1
-                values.append(np.nan if value is None else value * scale)
+                values.append(np.nan if value is None else display_value(metric, value))
             present.extend(v for v in values if np.isfinite(v))
             ax.plot(range(len(levels)), values, marker=("o", "s", "^", "D")[index % 4],
-                    markersize=4, linewidth=1.3, color=COLORS[index % len(COLORS)],
+                    markersize=4, linewidth=1.3, color=solver_color(name),
                     label=LABELS.get(name, name))
             ax.scatter([x + index * .06 for x in failed], [.025] * len(failed), marker="x",
-                       color=COLORS[index % len(COLORS)], transform=ax.get_xaxis_transform())
+                       color=solver_color(name), transform=ax.get_xaxis_transform())
         log = metric in METRICS[:3] and present and min(present) > 0
         if log:
             ax.set_yscale("log")

@@ -11,6 +11,7 @@ from .plot_data import (HEURISTICS, MODES, Run, check_heuristics, geometric_mean
                         optimality_counts, ordered, paired_values, read_runs, solver_ratios,
                         validate_summary)
 from .plot_solvers import level_labels, solver_appendix, solver_figure
+from .plot_style import DISPLAY_UNITS, MAIN_HEIGHT_INCHES, REPORT_WIDTH_INCHES
 
 ROOT = Path(__file__).resolve().parent
 COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#64748B")
@@ -24,9 +25,9 @@ def _heuristic_figure(runs: list[Run], mode: str):
     import matplotlib.pyplot as plt
 
     metrics = ("expanded_nodes", "time_sec", "peak_memory_kb", "tightness")
-    titles = ("Node / h=0 · thấp hơn tốt hơn", "Thời gian / h=0 · thấp hơn tốt hơn",
-              "Bộ nhớ / h=0 · thấp hơn tốt hơn", "h(start) / C* · gần 1 hơn là sát hơn")
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    titles = ("Số nút đã mở rộng / h=0", "Thời gian / h=0",
+              "Bộ nhớ đỉnh / h=0", "Độ sát: h(start) / C*")
+    fig, axes = plt.subplots(4, 1, figsize=(REPORT_WIDTH_INCHES, MAIN_HEIGHT_INCHES))
     for ax, metric, title in zip(axes.flat, metrics, titles):
         paired, total = paired_values(runs, mode, metric)
         count = len(next(iter(paired.values()), []))
@@ -36,21 +37,21 @@ def _heuristic_figure(runs: list[Run], mode: str):
             if value is not None:
                 ax.barh(i, value, color=COLORS[i % len(COLORS)], height=.63)
             ax.text((value or 0) + .025, i, "N/A" if value is None else f"{value:.3f}",
-                    va="center", fontsize=10)
+                    va="center", fontsize=11)
         ax.set_yticks(range(len(values)), [LABELS.get(n, n) for n in values])
         ax.invert_yaxis()
         ax.axvline(1, color="#475569", linestyle="--", linewidth=1)
         largest = max((v for v in values.values() if v is not None), default=1)
         ax.set_xlim(0, max(1.18, largest * 1.2))
-        ax.set_title(f"{title}\nn={count}/{total} màn chung", loc="left", fontsize=12)
+        ax.set_title(f"{title}\nn={count}/{total} màn chung", loc="left", fontsize=12.5)
         ax.grid(axis="x", alpha=.18)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-    fig.suptitle("So sánh heuristic A* · " + MODE_LABELS[mode], fontsize=17)
-    fig.text(.025, .015, "Mốc so sánh: A* với h=0 trên cùng màn và cost mode. "
-             "Ratio: trung bình nhân; tightness: trung bình cộng.\nChỉ dùng các màn hợp lệ "
-             "chung cho mọi heuristic; phép đo bằng 0 không dùng làm log-ratio.", fontsize=10)
-    fig.tight_layout(rect=(0, .07, 1, .94))
+    fig.suptitle("So sánh heuristic A*\n" + MODE_LABELS[mode], fontsize=14)
+    fig.text(.025, .015, "Mốc: A* h=0 cùng màn và chế độ; n: màn chung / tổng số màn.\n"
+             "Ratio: trung bình nhân, thấp hơn tốt hơn; độ sát: trung bình cộng.\n"
+             "Độ sát gần 1 là sát hơn; phép đo 0 không dùng làm log-ratio.", fontsize=10.5)
+    fig.tight_layout(rect=(0, .095, 1, .92), h_pad=1.0)
     return fig
 
 
@@ -75,27 +76,31 @@ def _group_figure(runs: list[Run]):
     finite = [v for _, _, rows, _ in panels for row in rows for v in row if v is not None]
     largest = max(finite, default=1)
     norm = TwoSlopeNorm(vmin=0, vcenter=1, vmax=max(1.1, largest))
-    fig, axes = plt.subplots(len(modes), 2, figsize=(15, 4.6 * len(modes)),
+    fig, axes = plt.subplots(len(modes), 1, figsize=(8, 4.1 * len(modes)),
                              squeeze=False, layout="constrained")
-    for ax, (mode, metric, values, counts) in zip(axes.flat, panels):
-        image = ax.pcolormesh(np.array(values, dtype=float), cmap="RdYlBu_r", norm=norm,
-                              edgecolors="white", linewidth=.5, rasterized=False)
+    for row, mode in enumerate(modes):
+        ax = axes[row, 0]
+        selected = [p for p in panels if p[0] == mode]
+        values = [a+b for a, b in zip(selected[0][2], selected[1][2])]
+        counts = [a+b for a, b in zip(selected[0][3], selected[1][3])]
+        mesh = ax.pcolormesh(np.array(values, dtype=float), cmap="RdYlBu_r", norm=norm,
+                             edgecolors="white", linewidth=.5, rasterized=False)
         ax.set_ylim(len(names), 0)
-        for i, row in enumerate(values):
-            for j, value in enumerate(row):
+        for i, cells in enumerate(values):
+            for j, value in enumerate(cells):
                 label = "N/A" if value is None else f"{value:.3f}\nn={counts[i][j]}"
                 color = "white" if value is not None and value < .3 else "black"
-                ax.text(j + .5, i + .5, label, ha="center", va="center", fontsize=9,
+                ax.text(j + .5, i + .5, label, ha="center", va="center", fontsize=11.5,
                         color=color)
-        ax.set_xticks([j + .5 for j in range(len(groups))], [g.upper() for g in groups])
+        labels = [f"{metric}\n{g.upper()}" for metric in ("Nút", "TG") for g in groups]
+        ax.set_xticks([j + .5 for j in range(len(labels))], labels, fontsize=11.5)
         ax.set_yticks([i + .5 for i in range(len(names))], [LABELS.get(n, n) for n in names])
-        ax.set_title(MODE_LABELS[mode] + (" · node / h=0" if metric == "expanded_nodes"
-                                         else " · thời gian / h=0"), fontsize=12)
-    colorbar = fig.colorbar(image, ax=list(axes.flat), shrink=.8,
-                            label="Ratio (trung bình nhân); thấp hơn tốt hơn")
+        ax.set_title(MODE_LABELS[mode], fontsize=12.5)
+    colorbar = fig.colorbar(mesh, ax=list(axes.flat), shrink=.8,
+                            label="Tỉ số / h=0; thấp hơn tốt hơn")
     colorbar.solids.set_rasterized(False)
-    fig.suptitle("Hiệu quả heuristic theo nhóm màn", fontsize=17)
-    fig.supxlabel("Cùng thang màu cho cả hai cost mode · n: số màn ghép cặp chung", fontsize=10)
+    fig.suptitle("Hiệu quả heuristic theo nhóm màn", fontsize=14)
+    fig.supxlabel("Nút = nút mở rộng; TG = thời gian · n: số màn ghép cặp chung", fontsize=10.5)
     return fig
 
 
@@ -107,7 +112,7 @@ def render(results: list[Run], heuristics: list[Run], output: Path,
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
 
-    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10,
+    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11.5,
                          "pdf.fonttype": 42, "svg.fonttype": "none", "axes.titlepad": 10})
     output.mkdir(parents=True, exist_ok=True)
     paths = []
@@ -172,8 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "heuristic_rows": len(heuristics), "summary_verified": args.summary is not None,
                 "figures": [p.name for p in paths], "dpi": args.dpi,
                 "matplotlib_version": __import__("matplotlib").__version__,
-                "units": {"time": "milliseconds (CSV seconds * 1000)",
-                          "memory": "KiB (F3 tracemalloc bytes / 1024)"},
+                "units": DISPLAY_UNITS,
                 "level_labels": level_labels(sorted({r.level for r in results})),
                 "ratio_baseline": {"solver": "UCS on the same level and cost_mode",
                                    "heuristic": "A* h=0 on the same level and cost_mode"},

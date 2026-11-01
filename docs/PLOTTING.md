@@ -36,14 +36,20 @@ hình sinh tự động; thư mục output mặc định được Git ignore. B�
 
 ## Quy tắc diễn giải
 
-- Không trộn `unit` với `weighted`. Thời gian đổi từ giây sang ms; memory của F3
-  đã tính bằng bytes/1024 nên nhãn chính xác là KiB, không chia thêm lần nữa.
+- Không trộn `unit` với `weighted`. Thời gian giữ đơn vị giây; memory của F3
+  lưu bằng bytes/1024 (KiB). Khi xuất phụ lục, đổi sang MB thập phân bằng
+  `peak_memory_kb * 1024 / 1_000_000`, đúng quy ước báo cáo; time giữ đơn vị giây.
 - Hình solver chính: tính tỉ số trên từng màn với UCS cùng cost mode, rồi lấy
   trung bình nhân theo nhóm. Mỗi chỉ số dùng tập màn giải được, có giá trị dương
   chung cho mọi solver; nhãn `n` cho biết số màn dùng / tổng số màn trong nhóm.
   Giữ lời giải chưa tối ưu của DFS/BFS, không loại chúng khỏi phép so sánh cost.
   Không tính tỉ số giữa hai trung bình, không thay dữ liệu thiếu/0 bằng epsilon.
   Cần có series UCS; UCS thiếu/thất bại ở một màn thì màn đó bị loại cho mọi solver.
+- Màu theo tên thuật toán, không theo vị trí series: BFS `#1F77B4`, DFS `#FF7F0E`,
+  UCS `#2CA02C`, A* `#D62728`; thiếu một thuật toán không làm đổi màu thuật toán khác.
+- Hình chính dùng một cột panel, font lớn hơn; heatmap có một panel mỗi chế độ,
+  bốn cột Nút G1–G4 rồi bốn cột TG G1–G4 (TG = thời gian), cùng thang màu.
+  Giá trị trên cột solver làm tròn ba chữ số có nghĩa; dữ liệu tính không làm tròn lại.
 - Node/time/memory/cost ratio dùng trục log, mốc ngang 1. Ở unit, cost ratio cũng
   là length ratio. Ở weighted, cost ratio dùng cost của UCS làm mốc tối ưu tham
   chiếu; BFS không được giả định bằng 1 vì ít bước nhất không bảo đảm cost thấp nhất.
@@ -61,6 +67,9 @@ hình sinh tự động; thư mục output mặc định được Git ignore. B�
   không được dùng làm log-ratio hay ghi nhận như một chiến thắng hiệu năng.
 - Node/time/memory ratios dùng trung bình nhân; tightness h(start)/C* dùng trung bình
   cộng. Ratio <1 là thấp hơn mốc. Tightness gần 1 là sát hơn, không phải runtime.
+- Kiểm tra `unit` có cost bằng length (sai số tuyệt đối 1e-6). Dòng heuristic
+  thất bại không được nhận optimal/node_ratio/time_ratio; mốc zero chưa giải
+  thì mọi optimal_cost/tightness/ratio/optimal phải trống, theo đúng đầu ra F3.
 - Kiểm tra lại từng ratio, optimal flag và toàn bộ summary theo quy tắc F3;
   chấp nhận sai số làm tròn bốn chữ số thập phân. Summary cũ/sai bị từ chối trước khi vẽ.
 - Bỏ hình `heuristics_quality` để tránh lặp node ratio và thanh tối ưu bằng nhau.
@@ -74,7 +83,7 @@ hình sinh tự động; thư mục output mặc định được Git ignore. B�
 ## Kiểm tra
 
 ```bash
-python -m unittest tests.test_plot_data -v
+python -m unittest tests.test_plot_data tests.test_plot_style -v
 python -m unittest discover -s tests -t .
 ```
 
