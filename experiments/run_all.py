@@ -13,7 +13,7 @@ BFS và DFS không dùng chi phí để tìm đường nhưng cột `cost` vẫn
 đường họ tìm được, nên so sánh được với UCS/A*.
 
 Mỗi dòng CSV là một cặp (màn, chế độ, solver). Cột và quy ước ô trống: xem
-`experiments/common.py` và `docs/EXPERIMENTS.md`.
+`experiments/common.py`.
 """
 import argparse
 import logging

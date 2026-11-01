@@ -36,11 +36,9 @@ def try_merge(cube_a: Cell, cube_b: Cell, bridges: int) -> Optional[State]:
     r1, col1 = cube_a
     r2, col2 = cube_b
 
-    # Cùng hàng, cột liền kề: ghép thành khối nằm ngang.
     if r1 == r2 and abs(col1 - col2) == 1:
         return State(r=r1, c=min(col1, col2), orient=HORIZ, bridges=bridges, split=None)
 
-    # Cùng cột, hàng liền kề: ghép thành khối thẳng đứng.
     if col1 == col2 and abs(r1 - r2) == 1:
         return State(r=min(r1, r2), c=col1, orient=VERT, bridges=bridges, split=None)
 
@@ -87,10 +85,8 @@ def move_cube(state: State, action: str, level: Level) -> Optional[State]:
     if new_active == inactive or not _is_walkable(level, state, new_active):
         return None
 
-    # Chỉ ghép sau khi xác nhận ô mới có sàn đỡ.
     merged = try_merge(new_active, inactive, state.bridges)
     if merged is not None:
         return merged
 
-    # Nếu chưa kề nhau, giữ nguyên cube đứng yên và cập nhật vị trí cube đang điều khiển.
     return State(r=0, c=0, orient=STAND, bridges=state.bridges, split=(new_active, inactive))

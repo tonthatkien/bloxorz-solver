@@ -38,9 +38,7 @@ DEFAULT_MAX_NODES = 2_000_000
 DEFAULT_TIMEOUT_SEC = 60.0
 TOL = 1e-6
 
-# unit: mọi bước chi phí 1 (UCS == BFS). weighted: hàm chi phí không đều của F1.
 MODES = ("unit", "weighted")
-# Màn demo có đủ loại ô, nhóm tách riêng khỏi bộ benchmark (xem tests/test_t2_levels.py).
 DEMO_LEVELS = frozenset({"g3_switch_demo"})
 CUT_NOTES = frozenset({"timeout", "node_limit"})
 
@@ -114,8 +112,7 @@ def run_one(level_path: Path, level: Level, mode: str, solver_name: str,
     gc.collect()
     try:
         res = measure(solve_fn, game, limits, repeats)
-    except Exception as exc:  # noqa: BLE001 - cố ý bắt rộng, xem docstring
-        # Lỗi xảy ra trong lần đo bộ nhớ sẽ để tracemalloc bật mãi, làm chậm mọi lần sau.
+    except Exception as exc: 
         if tracemalloc.is_tracing():
             tracemalloc.stop()
         text = " ".join(f"{type(exc).__name__}: {exc}".split())
@@ -159,7 +156,6 @@ def write_csv(rows: Sequence[Row], path: Path, fieldnames: Sequence[str] = FIELD
         writer.writerows(rows)
 
 
-# ---------------------------------------------------------------- dòng lệnh dùng chung
 def _positive_int(text: str) -> int:
     value = int(text)
     if value < 1:

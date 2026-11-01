@@ -15,7 +15,7 @@ METRICS = ("time_sec", "peak_memory_kb", "expanded_nodes", "length", "cost")
 DERIVED = ("h_start", "optimal_cost", "tightness", "node_ratio", "time_ratio")
 SUMMARY = ("levels", "geo_node_ratio", "geo_time_ratio", "mean_tightness",
            "node_wins", "non_optimal")
-ROUNDING_TOL = 0.000051  # F3 stores derived quantities and summaries to four decimals.
+ROUNDING_TOL = 0.000051 
 
 
 @dataclass(frozen=True)

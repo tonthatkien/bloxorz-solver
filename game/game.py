@@ -20,7 +20,6 @@ from .tiles import TileRules
 Action = str
 ACTIONS = ("U", "D", "L", "R", "S")
 
-# cost_fn(old_state, action, new_state) -> float
 CostFn = Callable[[State, Action, State], float]
 
 
@@ -30,7 +29,6 @@ class Game:
     def __init__(self, level: Level, cost_fn: Optional[CostFn] = None) -> None:
         self.level = level
         self.cost_fn = cost_fn
-        # Dựng một lần, không dựng lại mỗi lần get_successors (CODING_STANDARDS mục 7)
         self.board = Board.from_strings(level.grid)
         self.tile_rules = TileRules.from_level(level)
 
@@ -47,7 +45,6 @@ class Game:
         """Sinh nước U, D, L, R, S; chỉ tính chi phí sau khi chốt trạng thái cuối."""
         moves: List[Tuple[Action, Optional[State]]]
         if s.split is not None:
-            # Trạng thái split kề nhau vi phạm tiền điều kiện C1, không có nước hợp lệ.
             if try_merge(s.split[0], s.split[1], s.bridges) is not None:
                 return []
             moves = [(action, move_cube(s, action, self.level)) for action in ACTIONS]
@@ -60,16 +57,13 @@ class Game:
         for action, moved in moves:
             if moved is None:
                 continue
-            # B2 kiểm tra sàn trước/sau hiệu ứng, gồm cả cube đang đứng yên.
             resolved = self.tile_rules.resolve_landing(s, moved)
             if resolved is None:
                 continue
-            # Theo C2, chỉ lăn khối thường mới kích hoạt split, không phải lúc ghép.
             if s.split is None:
                 split_state = activate_split_switch(s, resolved, self.level)
                 if split_state is not None:
                     resolved = split_state
-                    # Dịch chuyển đổi footprint; phải kiểm tra cả hai điểm đến.
                     if not self.tile_rules.is_supported(resolved):
                         continue
             result.append((action, resolved, self.step_cost(s, action, resolved)))
