@@ -10,7 +10,9 @@ from gui.animator import (
     ANIM_DURATION_MS, REPLAY_MERGE_PAUSE_MS, REPLAY_SPLIT_PAUSE_MS,
     REPLAY_STEP_DELAY_MS, REPLAY_SWAP_PAUSE_MS, AnimationManager, ease_roll,
 )
-from gui.draw import calculate_iso_layout, draw_scene, draw_sky_with_clouds
+from gui.draw import draw_scene
+from gui.render_board import calculate_iso_layout
+from gui.sky import draw_sky_with_clouds
 from gui.help_modal import HelpModal
 from gui.hud import (
     DOCK_W, DOCK_X, DOCK_Y, draw_dock_bar, draw_hud_status, draw_loss_banner, draw_win_banner,

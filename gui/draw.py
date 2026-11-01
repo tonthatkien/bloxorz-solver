@@ -13,10 +13,8 @@ from gui.draw_tiles import (
     terrain_view,
 )
 
-from gui.sky import draw_sky_with_clouds
 from gui.render_board import (
     grid_to_iso,
-    calculate_iso_layout,
     _draw_floor_tile,
     _draw_goal_tile,
     _tile_quad,
